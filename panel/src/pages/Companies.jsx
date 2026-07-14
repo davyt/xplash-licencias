@@ -77,7 +77,7 @@ export default function Companies() {
       <div className="page-header">
         <Title level={4} style={{ margin: 0 }}>Empresas</Title>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}
-          style={{ background: '#e8173a', borderColor: '#e8173a' }}>
+          style={{ background: '#F65C7C', borderColor: '#F65C7C' }}>
           Nueva empresa
         </Button>
       </div>
@@ -107,7 +107,7 @@ export default function Companies() {
         onOk={handleSave}
         onCancel={() => setModalOpen(false)}
         okText={editing ? 'Guardar cambios' : 'Crear empresa'}
-        okButtonProps={{ style: { background: '#e8173a', borderColor: '#e8173a' } }}
+        okButtonProps={{ style: { background: '#F65C7C', borderColor: '#F65C7C' } }}
         cancelText="Cancelar"
         destroyOnClose
       >

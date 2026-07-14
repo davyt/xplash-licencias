@@ -15,8 +15,9 @@ dayjs.locale('es')
 
 const theme = {
   token: {
-    colorPrimary: '#e8173a',
-    colorLink: '#e8173a',
+    colorPrimary: '#F65C7C',
+    colorLink: '#F65C7C',
+    colorText: '#2E3953',
     borderRadius: 6,
   },
 }

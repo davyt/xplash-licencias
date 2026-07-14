@@ -142,7 +142,7 @@ export default function Licenses() {
       <div className="page-header">
         <Title level={4} style={{ margin: 0 }}>Licencias</Title>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}
-          style={{ background: '#e8173a', borderColor: '#e8173a' }}>
+          style={{ background: '#F65C7C', borderColor: '#F65C7C' }}>
           Nueva licencia
         </Button>
       </div>
@@ -185,7 +185,7 @@ export default function Licenses() {
         onOk={handleSave}
         onCancel={() => setModalOpen(false)}
         okText={editing ? 'Guardar cambios' : 'Crear licencia'}
-        okButtonProps={{ style: { background: '#e8173a', borderColor: '#e8173a' } }}
+        okButtonProps={{ style: { background: '#F65C7C', borderColor: '#F65C7C' } }}
         cancelText="Cancelar"
         width={620}
         destroyOnClose

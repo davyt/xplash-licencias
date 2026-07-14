@@ -31,17 +31,20 @@ export default function LoginPage() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#1a1a2e',
+      background: '#24364F',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
     }}>
       <Card style={{ width: 380, borderRadius: 12 }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <Typography.Text style={{ color: '#e8173a', fontWeight: 700, fontSize: 14, letterSpacing: 3 }}>
-            XPLASH
-          </Typography.Text>
-          <Typography.Title level={4} style={{ margin: '8px 0 0', color: '#1a1a2e' }}>
+          <img
+            src="https://experiencias.xplash.org/xplash_logo.svg"
+            alt="Xplash"
+            height="36"
+            style={{ marginBottom: 12 }}
+          />
+          <Typography.Title level={4} style={{ margin: 0, color: '#2E3953' }}>
             Panel de Licencias
           </Typography.Title>
         </div>
@@ -70,7 +73,6 @@ export default function LoginPage() {
               block
               size="large"
               loading={loading}
-              style={{ background: '#e8173a', borderColor: '#e8173a' }}
             >
               Ingresar
             </Button>

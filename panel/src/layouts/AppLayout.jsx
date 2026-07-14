@@ -44,13 +44,16 @@ export default function AppLayout() {
     <Layout style={{ minHeight: '100vh' }}>
       <Sider
         width={220}
-        style={{ background: '#1a1a2e' }}
+        style={{ background: '#24364F' }}
       >
-        <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-          <Typography.Text style={{ color: '#e8173a', fontWeight: 700, fontSize: 13, letterSpacing: 3 }}>
-            XPLASH
-          </Typography.Text>
-          <div style={{ color: '#888', fontSize: 11, marginTop: 2 }}>Panel de Licencias</div>
+        <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+          <img
+            src="https://experiencias.xplash.org/xplash_logo.svg"
+            alt="Xplash"
+            height="28"
+            style={{ display: 'block', marginBottom: 4 }}
+          />
+          <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11 }}>Panel de Licencias</div>
         </div>
 
         <Menu
@@ -59,7 +62,7 @@ export default function AppLayout() {
           onClick={({ key }) => navigate(key)}
           items={navItems}
           style={{
-            background: '#1a1a2e',
+            background: '#24364F',
             border: 'none',
             marginTop: 8,
           }}
@@ -74,7 +77,7 @@ export default function AppLayout() {
             placement="bottomRight"
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-              <Avatar size="small" icon={<UserOutlined />} style={{ background: '#e8173a' }} />
+              <Avatar size="small" icon={<UserOutlined />} style={{ background: 'linear-gradient(90deg, #F65C7C, #F46E35)' }} />
               <Typography.Text style={{ fontSize: 13 }}>{adminEmail}</Typography.Text>
             </div>
           </Dropdown>

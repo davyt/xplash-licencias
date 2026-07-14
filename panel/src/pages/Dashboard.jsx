@@ -56,7 +56,7 @@ export default function Dashboard() {
           <Statistic title="Licencias activas" value={stats.active} prefix={<CheckCircleOutlined style={{ color: '#52c41a' }} />} valueStyle={{ color: '#52c41a' }} />
         </Card>
         <Card>
-          <Statistic title="Bloqueadas" value={stats.blocked} prefix={<StopOutlined style={{ color: '#e8173a' }} />} valueStyle={{ color: '#e8173a' }} />
+          <Statistic title="Bloqueadas" value={stats.blocked} prefix={<StopOutlined style={{ color: '#F65C7C' }} />} valueStyle={{ color: '#F65C7C' }} />
         </Card>
         <Card>
           <Statistic title="Vencidas" value={stats.expired} prefix={<ClockCircleOutlined style={{ color: '#faad14' }} />} valueStyle={{ color: '#faad14' }} />
