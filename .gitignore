@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+panel/node_modules/
+functions/node_modules/
+
+# Build outputs
+panel/dist/
+functions/lib/
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+functions-debug.log
+.runtimeconfig.json
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+*.env
+
+# Firebase emulator data
+.emulator-data/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Propuestas comerciales (no van al repo público)
+wireframes-panel-xplash.html
+condiciones-comerciales-xplash.html
+recursos-tecnicos-xplash.html
