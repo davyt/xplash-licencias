@@ -2,13 +2,19 @@ import { Table, Tag, Select, Input, Typography, Space, Alert } from 'antd'
 import { useState } from 'react'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import { mockInstallations, mockCompanies } from '../mock/data'
+import { mockInstallations, mockCompanies, mockLicenses } from '../mock/data'
 
 dayjs.extend(relativeTime)
 
-const { Title } = Typography
+const { Title, Text } = Typography
 
 const OFFLINE_THRESHOLD_HOURS = 48
+
+const PLATFORM_LABELS = {
+  quest2: 'Meta Quest 2',
+  quest3: 'Meta Quest 3',
+  questpro: 'Meta Quest Pro',
+}
 
 export default function Devices() {
   const [filterCompany, setFilterCompany] = useState(null)
@@ -25,6 +31,34 @@ export default function Devices() {
     return diffHours > OFFLINE_THRESHOLD_HOURS
   })
 
+  const expandedRowRender = (record) => {
+    const license = mockLicenses.find(l => l.id === record.licenseId)
+    return (
+      <Space size={40} wrap style={{ padding: '4px 0 8px' }}>
+        <div>
+          <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Licencia</Text>
+          <code style={{ fontSize: 12 }}>{license?.licenseCode || record.licenseId}</code>
+        </div>
+        <div>
+          <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Modelo</Text>
+          <Text>{record.deviceModel || <span style={{ color: '#bbb' }}>—</span>}</Text>
+        </div>
+        <div>
+          <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Sistema operativo</Text>
+          <Text>{record.osVersion || <span style={{ color: '#bbb' }}>—</span>}</Text>
+        </div>
+        <div>
+          <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Plataforma</Text>
+          <Text>{record.platform ? (PLATFORM_LABELS[record.platform] || record.platform) : <span style={{ color: '#bbb' }}>—</span>}</Text>
+        </div>
+        <div>
+          <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Primera conexión</Text>
+          <Text>{dayjs(record.firstSeenAt).format('DD/MM/YYYY HH:mm')}</Text>
+        </div>
+      </Space>
+    )
+  }
+
   const columns = [
     {
       title: 'ID Visor', dataIndex: 'installId', key: 'id',
@@ -34,10 +68,6 @@ export default function Devices() {
     {
       title: 'Versión app', dataIndex: 'appVersion', key: 'version',
       render: v => v || '—',
-    },
-    {
-      title: 'Primera conexión', dataIndex: 'firstSeenAt', key: 'first',
-      render: v => dayjs(v).format('DD/MM/YYYY'),
     },
     {
       title: 'Última conexión', dataIndex: 'lastSeenAt', key: 'last',
@@ -92,7 +122,13 @@ export default function Devices() {
         columns={columns}
         rowKey="id"
         size="middle"
+        scroll={{ x: 'max-content' }}
         pagination={{ pageSize: 10, showTotal: (t, r) => `${r[0]}–${r[1]} de ${t}` }}
+        expandable={{
+          expandedRowRender,
+          rowExpandable: () => true,
+          expandRowByClick: true,
+        }}
       />
     </div>
   )

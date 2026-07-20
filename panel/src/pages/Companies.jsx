@@ -98,6 +98,7 @@ export default function Companies() {
         columns={columns}
         rowKey="id"
         size="middle"
+        scroll={{ x: 'max-content' }}
         pagination={{ pageSize: 10, showTotal: (t, r) => `${r[0]}–${r[1]} de ${t}` }}
       />
 
@@ -109,7 +110,6 @@ export default function Companies() {
         okText={editing ? 'Guardar cambios' : 'Crear empresa'}
         okButtonProps={{ style: { background: '#F65C7C', borderColor: '#F65C7C' } }}
         cancelText="Cancelar"
-        destroyOnClose
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item name="name" label="Nombre de empresa" rules={[{ required: true, message: 'Campo requerido' }]}>

@@ -1,5 +1,5 @@
 import { Card, Statistic, Table, Tag, Typography } from 'antd'
-import { CheckCircleOutlined, StopOutlined, ClockCircleOutlined, TabletOutlined } from '@ant-design/icons'
+import { CheckCircleOutlined, StopOutlined, ClockCircleOutlined, EyeOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { mockLicenses, mockInstallations, STATUS_LABELS } from '../mock/data'
@@ -53,20 +53,20 @@ export default function Dashboard() {
 
       <div className="stat-cards">
         <Card>
-          <Statistic title="Licencias activas" value={stats.active} prefix={<CheckCircleOutlined style={{ color: '#52c41a' }} />} valueStyle={{ color: '#52c41a' }} />
+          <Statistic title="Licencias activas" value={stats.active} prefix={<CheckCircleOutlined style={{ color: '#52c41a' }} />} styles={{ content: { color: '#52c41a' } }} />
         </Card>
         <Card>
-          <Statistic title="Bloqueadas" value={stats.blocked} prefix={<StopOutlined style={{ color: '#F65C7C' }} />} valueStyle={{ color: '#F65C7C' }} />
+          <Statistic title="Bloqueadas" value={stats.blocked} prefix={<StopOutlined style={{ color: '#F65C7C' }} />} styles={{ content: { color: '#F65C7C' } }} />
         </Card>
         <Card>
-          <Statistic title="Vencidas" value={stats.expired} prefix={<ClockCircleOutlined style={{ color: '#faad14' }} />} valueStyle={{ color: '#faad14' }} />
+          <Statistic title="Vencidas" value={stats.expired} prefix={<ClockCircleOutlined style={{ color: '#faad14' }} />} styles={{ content: { color: '#faad14' } }} />
         </Card>
         <Card>
-          <Statistic title="Visores registrados" value={stats.devices} prefix={<TabletOutlined />} />
+          <Statistic title="Visores registrados" value={stats.devices} prefix={<EyeOutlined />} />
         </Card>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+      <div className="dashboard-grid">
         <Card title="Licencias recientes" size="small">
           <Table
             dataSource={mockLicenses.slice(0, 5)}
@@ -74,6 +74,7 @@ export default function Dashboard() {
             rowKey="id"
             pagination={false}
             size="small"
+            scroll={{ x: 'max-content' }}
           />
         </Card>
         <Card title="Últimos accesos de visores" size="small">
@@ -83,6 +84,7 @@ export default function Dashboard() {
             rowKey="id"
             pagination={false}
             size="small"
+            scroll={{ x: 'max-content' }}
           />
         </Card>
       </div>

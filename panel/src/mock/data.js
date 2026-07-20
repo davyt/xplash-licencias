@@ -41,10 +41,42 @@ export const mockLicenses = [
 ]
 
 export const mockInstallations = [
-  { id: 'i1', installId: 'Quest-AceriaA01', licenseId: 'l1', companyId: 'c1', companyName: 'Acería del Sur', appVersion: '1.2.0', lastSeenAt: new Date(Date.now() - 5 * 60 * 1000), firstSeenAt: new Date('2026-02-05') },
-  { id: 'i2', installId: 'Quest-Logi01', licenseId: 'l2', companyId: 'c2', companyName: 'LogiCorp SA', appVersion: '1.1.0', lastSeenAt: new Date(Date.now() - 2 * 60 * 60 * 1000), firstSeenAt: new Date('2026-02-10') },
-  { id: 'i3', installId: 'Quest-Logi02', licenseId: 'l2', companyId: 'c2', companyName: 'LogiCorp SA', appVersion: '1.2.0', lastSeenAt: new Date(Date.now() - 2 * 60 * 60 * 1000), firstSeenAt: new Date('2026-02-12') },
-  { id: 'i4', installId: 'Quest-Mine01', licenseId: 'l3', companyId: 'c3', companyName: 'MineraX', appVersion: '1.0.0', lastSeenAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), firstSeenAt: new Date('2026-01-22') },
+  {
+    id: 'i1', installId: 'Quest-AceriaA01', licenseId: 'l1', companyId: 'c1', companyName: 'Acería del Sur',
+    appVersion: '1.2.0',
+    deviceModel: 'Meta Quest 3',
+    osVersion: 'Android 12 (API 32)',
+    platform: 'quest3',
+    lastSeenAt: new Date(Date.now() - 5 * 60 * 1000),
+    firstSeenAt: new Date('2026-02-05'),
+  },
+  {
+    id: 'i2', installId: 'Quest-Logi01', licenseId: 'l2', companyId: 'c2', companyName: 'LogiCorp SA',
+    appVersion: '1.1.0',
+    deviceModel: 'Meta Quest 2',
+    osVersion: 'Android 10 (API 29)',
+    platform: 'quest2',
+    lastSeenAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+    firstSeenAt: new Date('2026-02-10'),
+  },
+  {
+    id: 'i3', installId: 'Quest-Logi02', licenseId: 'l2', companyId: 'c2', companyName: 'LogiCorp SA',
+    appVersion: '1.2.0',
+    deviceModel: 'Meta Quest 3',
+    osVersion: 'Android 12 (API 32)',
+    platform: 'quest3',
+    lastSeenAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+    firstSeenAt: new Date('2026-02-12'),
+  },
+  {
+    id: 'i4', installId: 'Quest-Mine01', licenseId: 'l3', companyId: 'c3', companyName: 'MineraX',
+    appVersion: '1.0.0',
+    deviceModel: 'Meta Quest 2',
+    osVersion: 'Android 10 (API 29)',
+    platform: 'quest2',
+    lastSeenAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+    firstSeenAt: new Date('2026-01-22'),
+  },
 ]
 
 export const mockEvents = [
@@ -57,10 +89,22 @@ export const mockEvents = [
 
 export const MODULES = [
   { id: 'derrame_combustible', label: 'Derrame de combustible' },
-  { id: 'riesgo_electrico', label: 'Riesgo eléctrico' },
-  { id: 'recorrido_obra', label: 'Recorrido de obra' },
-  { id: 'trabajo_en_altura', label: 'Trabajo en altura' },
+  { id: 'riesgo_electrico',   label: 'Riesgo eléctrico' },
+  { id: 'recorrido_obra',     label: 'Recorrido de obra' },
+  { id: 'trabajo_en_altura',  label: 'Trabajo en altura' },
 ]
+
+export const PLANS = [
+  { value: '1m_1_visor',    label: '1 mes · 1 visor',      durationMonths: 1,    defaultMaxDevices: 1 },
+  { value: '3m_1_visor',    label: '3 meses · 1 visor',    durationMonths: 3,    defaultMaxDevices: 1 },
+  { value: '3m_2_visores',  label: '3 meses · 2 visores',  durationMonths: 3,    defaultMaxDevices: 2 },
+  { value: '6m_1_visor',    label: '6 meses · 1 visor',    durationMonths: 6,    defaultMaxDevices: 1 },
+  { value: '6m_3_visores',  label: '6 meses · 3 visores',  durationMonths: 6,    defaultMaxDevices: 3 },
+  { value: '12m_5_visores', label: '12 meses · 5 visores', durationMonths: 12,   defaultMaxDevices: 5 },
+  { value: 'custom',        label: 'Personalizado',         durationMonths: null, defaultMaxDevices: null },
+]
+
+export const DEFAULT_GRACE_HOURS = 48
 
 export const STATUS_LABELS = {
   active:  { label: 'Activa',    color: 'success' },

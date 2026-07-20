@@ -42,7 +42,7 @@ firebase.json
 
 ## Contrato integración Unreal Engine
 ```
-POST https://us-central1-xplash-licencias.cloudfunctions.net/validateLicense
+POST https://southamerica-east1-xplash-licencias-a7a58.cloudfunctions.net/validateLicense
 
 Body:     { "licenseCode": "XPL-001", "installId": "quest-01", "moduleId": "derrame_combustible", "appVersion": "1.0.0" }
 OK:       { "allowed": true,  "validUntil": "2026-08-01T00:00:00Z", "offlineGraceHours": 48 }

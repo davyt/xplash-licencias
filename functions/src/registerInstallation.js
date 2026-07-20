@@ -6,7 +6,7 @@ const { db } = require('./admin')
  * Body: { licenseCode, installId, appVersion }
  * Usado para pre-registrar un visor antes de que entre al módulo.
  */
-const registerInstallation = onRequest({ cors: false }, async (req, res) => {
+const registerInstallation = onRequest({ cors: false, region: 'southamerica-east1' }, async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }

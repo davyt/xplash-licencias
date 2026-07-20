@@ -84,6 +84,7 @@ export default function Events() {
         columns={columns}
         rowKey="id"
         size="middle"
+        scroll={{ x: 'max-content' }}
         pagination={{ pageSize: 15, showTotal: (t, r) => `${r[0]}–${r[1]} de ${t}` }}
       />
     </div>

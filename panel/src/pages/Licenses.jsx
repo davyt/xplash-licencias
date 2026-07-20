@@ -2,19 +2,9 @@ import { useState } from 'react'
 import { Table, Button, Tag, Input, Select, Modal, Form, Checkbox, InputNumber, DatePicker, Typography, Space, Tooltip, message, Popconfirm } from 'antd'
 import { PlusOutlined, EditOutlined, CopyOutlined, StopOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import { mockLicenses, mockCompanies, MODULES, STATUS_LABELS } from '../mock/data'
+import { mockLicenses, mockCompanies, mockInstallations, MODULES, PLANS, STATUS_LABELS } from '../mock/data'
 
 const { Title } = Typography
-
-const PLANS = [
-  { value: '1m_1_visor', label: '1 mes · 1 visor' },
-  { value: '3m_1_visor', label: '3 meses · 1 visor' },
-  { value: '3m_2_visores', label: '3 meses · 2 visores' },
-  { value: '6m_1_visor', label: '6 meses · 1 visor' },
-  { value: '6m_3_visores', label: '6 meses · 3 visores' },
-  { value: '12m_5_visores', label: '12 meses · 5 visores' },
-  { value: 'custom', label: 'Personalizado' },
-]
 
 function genCode(companyName) {
   const slug = companyName.toUpperCase().slice(0, 6).replace(/\s/g, '')
@@ -110,7 +100,20 @@ export default function Licenses() {
     },
     {
       title: 'Visores', key: 'devices',
-      render: (_, r) => `${r.maxDevices}`,
+      render: (_, r) => {
+        const registered = mockInstallations.filter(i => i.licenseId === r.id).length
+        const atMax = registered >= r.maxDevices
+        const nearMax = !atMax && registered >= r.maxDevices - 1 && r.maxDevices > 1
+        return (
+          <span style={{ color: atMax ? '#ff4d4f' : nearMax ? '#faad14' : undefined, fontVariantNumeric: 'tabular-nums' }}>
+            {registered}/{r.maxDevices}
+          </span>
+        )
+      },
+    },
+    {
+      title: 'Grace', dataIndex: 'offlineGraceHours', key: 'grace',
+      render: v => v != null ? `${v}h` : '—',
     },
     {
       title: 'Vence', dataIndex: 'expiresAt', key: 'expires',
@@ -176,6 +179,7 @@ export default function Licenses() {
         columns={columns}
         rowKey="id"
         size="middle"
+        scroll={{ x: 'max-content' }}
         pagination={{ pageSize: 10, showTotal: (t, r) => `${r[0]}–${r[1]} de ${t}` }}
       />
 
@@ -188,7 +192,6 @@ export default function Licenses() {
         okButtonProps={{ style: { background: '#F65C7C', borderColor: '#F65C7C' } }}
         cancelText="Cancelar"
         width={620}
-        destroyOnClose
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -202,7 +205,7 @@ export default function Licenses() {
               <Select options={Object.entries(STATUS_LABELS).map(([v, { label }]) => ({ value: v, label }))} />
             </Form.Item>
             <Form.Item name="plan" label="Plan">
-              <Select options={PLANS} />
+              <Select options={PLANS.map(p => ({ value: p.value, label: p.label }))} />
             </Form.Item>
             <Form.Item name="maxDevices" label="Visores permitidos" rules={[{ required: true }]}>
               <InputNumber min={1} max={50} style={{ width: '100%' }} />

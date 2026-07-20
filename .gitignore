@@ -20,6 +20,7 @@ functions-debug.log
 .env.local
 .env.*.local
 *.env
+functions/serviceAccountKey.json
 
 # Firebase emulator data
 .emulator-data/

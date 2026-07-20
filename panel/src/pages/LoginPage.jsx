@@ -2,12 +2,13 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Form, Input, Button, Card, Typography, Alert } from 'antd'
 import { LockOutlined, MailOutlined } from '@ant-design/icons'
-
-const DEMO_USER = 'admin@xplash.com'
-const DEMO_PASS = 'xplash2026'
+import { signInWithEmailAndPassword } from 'firebase/auth'
+import { auth } from '../firebase'
+import { useAppTheme } from '../App'
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const { dark } = useAppTheme()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -15,14 +16,10 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
     try {
-      // TODO: reemplazar con Firebase Auth real
-      await new Promise(r => setTimeout(r, 600))
-      if (email === DEMO_USER && password === DEMO_PASS) {
-        localStorage.setItem('xplash_admin', email)
-        navigate('/dashboard')
-      } else {
-        setError('Email o contraseña incorrectos')
-      }
+      await signInWithEmailAndPassword(auth, email, password)
+      navigate('/dashboard')
+    } catch {
+      setError('Email o contraseña incorrectos')
     } finally {
       setLoading(false)
     }
@@ -41,10 +38,9 @@ export default function LoginPage() {
           <img
             src="https://experiencias.xplash.org/xplash_logo.svg"
             alt="Xplash"
-            height="36"
-            style={{ marginBottom: 12 }}
+            style={{ height: 56, width: 'auto', marginBottom: 16, filter: dark ? 'brightness(0) invert(1)' : 'none' }}
           />
-          <Typography.Title level={4} style={{ margin: 0, color: '#2E3953' }}>
+          <Typography.Title level={4} style={{ margin: 0 }}>
             Panel de Licencias
           </Typography.Title>
         </div>
@@ -67,13 +63,7 @@ export default function LoginPage() {
           </Form.Item>
 
           <Form.Item style={{ marginBottom: 0 }}>
-            <Button
-              type="primary"
-              htmlType="submit"
-              block
-              size="large"
-              loading={loading}
-            >
+            <Button type="primary" htmlType="submit" block size="large" loading={loading}>
               Ingresar
             </Button>
           </Form.Item>
