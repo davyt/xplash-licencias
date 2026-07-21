@@ -99,11 +99,14 @@ export const mockContracts = [
 
 // Usuarios del panel de administración
 export const mockAdminUsers = [
-  { id: 'u0', email: 'davyt@gmail.com',               displayName: 'David (dev)',        role: 'admin',     status: 'active',  createdAt: '2026-01-01' },
+  { id: 'u0', email: 'davyt@gmail.com',               displayName: 'Davyt',              role: 'admin',     status: 'active',  createdAt: '2026-01-01' },
   { id: 'u1', email: 'marta@martajara.com',            displayName: 'Marta Jara',         role: 'admin',     status: 'pending', createdAt: '2026-07-21' },
   { id: 'u2', email: 'mariaelena.ragazzi@gmail.com',  displayName: 'María Elena Ragazzi', role: 'admin',     status: 'pending', createdAt: '2026-07-21' },
-  { id: 'u3', email: 'apariciodebali@gmail.com',       displayName: 'Aparicio De Bali',   role: 'marketing', status: 'pending', createdAt: '2026-07-21' },
-  { id: 'u4', email: 'amalianavarrete@gmail.com',      displayName: 'Amalia Navarrete',   role: 'marketing', status: 'pending', createdAt: '2026-07-21' },
+  { id: 'u3', email: 'apariciodebali@gmail.com',       displayName: 'Aparicio De Bali',   role: 'admin',     status: 'pending', createdAt: '2026-07-21' },
+  { id: 'u4', email: 'amalianavarrete@gmail.com',      displayName: 'Amalia Navarrete',   role: 'admin',     status: 'pending', createdAt: '2026-07-21' },
+  { id: 'u5', email: 'lucia.garcia@xplash.org',        displayName: 'Lucía García',       role: 'marketing', status: 'pending', createdAt: '2026-07-21' },
+  { id: 'u6', email: 'carlos.lopez@xplash.org',        displayName: 'Carlos López',       role: 'marketing', status: 'pending', createdAt: '2026-07-21' },
+  { id: 'u7', email: 'comercial@xplash.org',           displayName: 'Demo Comercial',     role: 'marketing', status: 'active',  createdAt: '2026-07-21' },
 ]
 
 export const MODULES = [

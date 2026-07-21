@@ -5,6 +5,7 @@ import {
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
+import { useNavigate } from 'react-router-dom'
 import { mockLicenses, mockUserAccess, mockCompanies, mockAdminUsers, STATUS_LABELS } from '../mock/data'
 import { auth } from '../firebase'
 
@@ -57,8 +58,9 @@ const expiringColumns = [
 ]
 
 export default function Dashboard() {
-  const role  = getMockRole()
-  const today = dayjs()
+  const navigate = useNavigate()
+  const role     = getMockRole()
+  const today    = dayjs()
 
   const expiringSoonList = mockLicenses
     .filter(l => {
@@ -84,28 +86,28 @@ export default function Dashboard() {
   }
 
   const adminKpis = [
-    { title: 'Licencias activas',  value: stats.active,       color: '#52c41a', icon: <CheckCircleOutlined /> },
-    { title: 'Próximas a vencer',  value: stats.expiringSoon, color: stats.expiringSoon > 0 ? '#D97706' : '#52c41a', icon: <ExclamationCircleOutlined />, sub: '≤ 7 días', alert: stats.expiringSoon > 0 },
-    { title: 'Vencidas',           value: stats.expired,      color: '#faad14', icon: <ClockCircleOutlined /> },
-    { title: 'Bloqueadas',         value: stats.blocked,      color: '#F65C7C', icon: <StopOutlined /> },
+    { title: 'Licencias activas',  value: stats.active,       color: '#52c41a', icon: <CheckCircleOutlined />, link: '/licencias' },
+    { title: 'Próximas a vencer',  value: stats.expiringSoon, color: stats.expiringSoon > 0 ? '#D97706' : '#52c41a', icon: <ExclamationCircleOutlined />, sub: '≤ 7 días', alert: stats.expiringSoon > 0, link: '/licencias' },
+    { title: 'Vencidas',           value: stats.expired,      color: '#faad14', icon: <ClockCircleOutlined />, link: '/licencias' },
+    { title: 'Bloqueadas',         value: stats.blocked,      color: '#F65C7C', icon: <StopOutlined />, link: '/licencias' },
   ]
 
   const marketingKpis = [
-    { title: 'Licencias activas',  value: stats.active,          color: '#52c41a', icon: <CheckCircleOutlined /> },
-    { title: 'Próximas a vencer',  value: stats.expiringSoon,    color: stats.expiringSoon > 0 ? '#D97706' : '#52c41a', icon: <ExclamationCircleOutlined />, sub: '≤ 7 días', alert: stats.expiringSoon > 0 },
-    { title: 'Vencidas',           value: stats.expired,         color: '#faad14', icon: <ClockCircleOutlined /> },
-    { title: 'Empresas activas',   value: stats.activeCompanies, color: '#2563EB', icon: <BankOutlined /> },
+    { title: 'Licencias activas',  value: stats.active,          color: '#52c41a', icon: <CheckCircleOutlined />, link: '/licencias' },
+    { title: 'Próximas a vencer',  value: stats.expiringSoon,    color: stats.expiringSoon > 0 ? '#D97706' : '#52c41a', icon: <ExclamationCircleOutlined />, sub: '≤ 7 días', alert: stats.expiringSoon > 0, link: '/licencias' },
+    { title: 'Vencidas',           value: stats.expired,         color: '#faad14', icon: <ClockCircleOutlined />, link: '/licencias' },
+    { title: 'Empresas activas',   value: stats.activeCompanies, color: '#2563EB', icon: <BankOutlined />, link: '/empresas' },
   ]
 
   const kpis = role === 'admin' ? adminKpis : marketingKpis
 
   const bottomLeft  = role === 'admin'
-    ? { title: 'Licencias recientes', data: mockLicenses.slice(0, 5),    columns: licenseColumns }
-    : { title: 'Próximas a vencer',   data: expiringSoonList,             columns: expiringColumns }
+    ? { title: 'Licencias recientes', data: mockLicenses.slice(0, 5),   columns: licenseColumns,  link: '/licencias' }
+    : { title: 'Próximas a vencer',   data: expiringSoonList,            columns: expiringColumns, link: '/licencias' }
 
   const bottomRight = role === 'admin'
-    ? { title: 'Últimos accesos',      data: mockUserAccess.slice(0, 5),  columns: deviceColumns }
-    : { title: 'Licencias recientes',  data: mockLicenses.slice(0, 5),    columns: licenseColumns }
+    ? { title: 'Últimos accesos',     data: mockUserAccess.slice(0, 5), columns: deviceColumns,   link: '/accesos'   }
+    : { title: 'Licencias recientes', data: mockLicenses.slice(0, 5),   columns: licenseColumns,  link: '/licencias' }
 
   return (
     <div>
@@ -115,7 +117,9 @@ export default function Dashboard() {
         {kpis.map(kpi => (
           <Card
             key={kpi.title}
-            style={kpi.alert ? { borderColor: '#D97706', borderWidth: 1.5 } : {}}
+            hoverable
+            onClick={() => navigate(kpi.link)}
+            style={{ cursor: 'pointer', ...(kpi.alert ? { borderColor: '#D97706', borderWidth: 1.5 } : {}) }}
           >
             <Statistic
               title={
@@ -139,6 +143,7 @@ export default function Dashboard() {
             columns={bottomLeft.columns}
             rowKey="id"
             pagination={false}
+            onRow={() => ({ onClick: () => navigate(bottomLeft.link || '/licencias'), style: { cursor: 'pointer' } })}
             size="small"
             scroll={{ x: 'max-content' }}
             locale={{ emptyText: 'Sin datos' }}
@@ -150,6 +155,7 @@ export default function Dashboard() {
             columns={bottomRight.columns}
             rowKey="id"
             pagination={false}
+            onRow={() => ({ onClick: () => navigate(bottomRight.link), style: { cursor: 'pointer' } })}
             size="small"
             scroll={{ x: 'max-content' }}
           />

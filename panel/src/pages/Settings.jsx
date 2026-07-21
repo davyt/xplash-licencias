@@ -183,7 +183,7 @@ export default function Settings() {
                   type="primary"
                   disabled={!graceChanged}
                   onClick={() => { message.success('Configuración guardada'); setGraceChanged(false) }}
-                  style={{ background: '#F65C7C', borderColor: '#F65C7C' }}
+                  style={graceChanged ? { background: '#F65C7C', borderColor: '#F65C7C' } : {}}
                 >
                   Guardar
                 </Button>
