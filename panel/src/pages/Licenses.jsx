@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Table, Button, Tag, Input, Select, Modal, Form, Checkbox, InputNumber, DatePicker, Typography, Space, Tooltip, message, Popconfirm, Radio, Alert } from 'antd'
-import { PlusOutlined, EditOutlined, CopyOutlined, StopOutlined, SyncOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, CopyOutlined, StopOutlined, SyncOutlined, InfoCircleOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { mockLicenses, mockCompanies, mockUserAccess, MODULES, PLANS, STATUS_LABELS } from '../mock/data'
 
@@ -19,6 +19,9 @@ export default function Licenses() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form] = Form.useForm()
+
+  const [editExpiry, setEditExpiry]             = useState(null)
+  const [editExpiryChanged, setEditExpiryChanged] = useState(false)
 
   const [renewModal, setRenewModal]   = useState(false)
   const [renewTarget, setRenewTarget] = useState(null)
@@ -67,6 +70,8 @@ export default function Licenses() {
 
   const openCreate = () => {
     setEditing(null)
+    setEditExpiry(null)
+    setEditExpiryChanged(false)
     form.resetFields()
     form.setFieldsValue({ status: 'draft', offlineGraceHours: 48, maxUsers: 1, enabledModules: [] })
     setModalOpen(true)
@@ -74,12 +79,33 @@ export default function Licenses() {
 
   const openEdit = (record) => {
     setEditing(record)
+    setEditExpiry(record.expiresAt || null)
+    setEditExpiryChanged(false)
     form.setFieldsValue({
       ...record,
       startDate: record.startDate ? dayjs(record.startDate) : null,
-      expiresAt: record.expiresAt ? dayjs(record.expiresAt) : null,
+      // expiresAt omitted — displayed as read-only, managed via editExpiry state
     })
     setModalOpen(true)
+  }
+
+  const handleValuesChange = (changed, all) => {
+    const planChanged  = 'plan' in changed
+    const startChanged = 'startDate' in changed
+    if (!planChanged && !startChanged) return
+
+    const planConfig = PLANS.find(p => p.value === all.plan)
+    const startDate  = all.startDate
+    if (!planConfig?.durationMonths || !startDate) return
+
+    const newExpiry = dayjs(startDate).add(planConfig.durationMonths, 'month')
+
+    if (editing) {
+      setEditExpiry(newExpiry.format('YYYY-MM-DD'))
+      if (planChanged) setEditExpiryChanged(true)
+    } else {
+      form.setFieldValue('expiresAt', newExpiry)
+    }
   }
 
   const handleSave = () => {
@@ -88,8 +114,8 @@ export default function Licenses() {
       const payload = {
         ...values,
         companyName,
-        startDate: values.startDate?.format('YYYY-MM-DD') || null,
-        expiresAt: values.expiresAt?.format('YYYY-MM-DD') || null,
+        startDate:  values.startDate?.format('YYYY-MM-DD') || null,
+        expiresAt:  editing ? editExpiry : (values.expiresAt?.format('YYYY-MM-DD') || null),
         licenseCode: values.licenseCode || genCode(companyName),
       }
       if (editing) {
@@ -296,7 +322,7 @@ export default function Licenses() {
         cancelText="Cancelar"
         width={620}
       >
-        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+        <Form form={form} layout="vertical" style={{ marginTop: 16 }} onValuesChange={handleValuesChange}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <Form.Item name="companyId" label="Empresa" rules={[{ required: true }]}>
               <Select options={mockCompanies.map(c => ({ value: c.id, label: c.name }))} />
@@ -319,9 +345,36 @@ export default function Licenses() {
             <Form.Item name="startDate" label="Inicio">
               <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
             </Form.Item>
-            <Form.Item name="expiresAt" label="Vencimiento">
-              <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
-            </Form.Item>
+            {editing ? (
+              <Form.Item
+                label={
+                  <span>
+                    Vencimiento
+                    <Tooltip title="Para extender el vencimiento usá el botón Renovar en la tabla.">
+                      <InfoCircleOutlined style={{ marginLeft: 6, color: '#999', fontSize: 12 }} />
+                    </Tooltip>
+                  </span>
+                }
+              >
+                <Space direction="vertical" style={{ width: '100%' }} size={4}>
+                  <DatePicker
+                    style={{ width: '100%' }}
+                    format="DD/MM/YYYY"
+                    value={editExpiry ? dayjs(editExpiry) : null}
+                    disabled
+                  />
+                  {editExpiryChanged && (
+                    <span style={{ fontSize: 12, color: '#2563EB' }}>
+                      Recalculado según el nuevo plan
+                    </span>
+                  )}
+                </Space>
+              </Form.Item>
+            ) : (
+              <Form.Item name="expiresAt" label="Vencimiento">
+                <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
+              </Form.Item>
+            )}
           </div>
           <Form.Item name="enabledModules" label="Módulos habilitados">
             <Checkbox.Group
