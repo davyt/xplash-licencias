@@ -2,12 +2,10 @@ import { useState } from 'react'
 import { Card, Table, Button, Modal, Form, Input, InputNumber, Switch, Typography, Space, Alert, message } from 'antd'
 import { PlusOutlined, EditOutlined } from '@ant-design/icons'
 import { MODULES, PLANS, DEFAULT_GRACE_HOURS } from '../mock/data'
-import { useAppTheme } from '../App'
 
 const { Title, Text } = Typography
 
 export default function Settings() {
-  const { dark } = useAppTheme()
   const [modules, setModules] = useState(() => MODULES.map(m => ({ ...m, enabled: true })))
   const [plans, setPlans]     = useState(PLANS)
   const [defaultGrace, setDefaultGrace] = useState(DEFAULT_GRACE_HOURS)
@@ -185,12 +183,7 @@ export default function Settings() {
                   type="primary"
                   disabled={!graceChanged}
                   onClick={() => { message.success('Configuración guardada'); setGraceChanged(false) }}
-                  style={graceChanged
-                    ? { background: '#F65C7C', borderColor: '#F65C7C' }
-                    : dark
-                      ? { background: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.25)' }
-                      : { background: 'rgba(0,0,0,0.04)', borderColor: 'rgba(0,0,0,0.15)', color: 'rgba(0,0,0,0.25)' }
-                  }
+                  style={graceChanged ? { background: '#F65C7C', borderColor: '#F65C7C' } : {}}
                 >
                   Guardar
                 </Button>
