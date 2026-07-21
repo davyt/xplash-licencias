@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Table, Button, Tag, Input, Select, Modal, Form, Checkbox, InputNumber, DatePicker, Typography, Space, Tooltip, message, Popconfirm } from 'antd'
-import { PlusOutlined, EditOutlined, CopyOutlined, StopOutlined } from '@ant-design/icons'
+import { Table, Button, Tag, Input, Select, Modal, Form, Checkbox, InputNumber, DatePicker, Typography, Space, Tooltip, message, Popconfirm, Radio, Alert } from 'antd'
+import { PlusOutlined, EditOutlined, CopyOutlined, StopOutlined, SyncOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { mockLicenses, mockCompanies, mockUserAccess, MODULES, PLANS, STATUS_LABELS } from '../mock/data'
 
@@ -19,6 +19,33 @@ export default function Licenses() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form] = Form.useForm()
+
+  const [renewModal, setRenewModal]   = useState(false)
+  const [renewTarget, setRenewTarget] = useState(null)
+  const [renewMonths, setRenewMonths] = useState(6)
+  const [renewNotes, setRenewNotes]   = useState('')
+
+  const getRenewBase = (lic) => {
+    const exp = dayjs(lic.expiresAt)
+    return exp.isBefore(dayjs()) ? dayjs() : exp
+  }
+
+  const openRenew = (record) => {
+    setRenewTarget(record)
+    setRenewMonths(6)
+    setRenewNotes('')
+    setRenewModal(true)
+  }
+
+  const handleRenew = () => {
+    const base      = getRenewBase(renewTarget)
+    const newExpiry = base.add(renewMonths, 'month').format('YYYY-MM-DD')
+    setLicenses(prev => prev.map(l =>
+      l.id === renewTarget.id ? { ...l, expiresAt: newExpiry, status: 'active' } : l
+    ))
+    message.success(`${renewTarget.licenseCode} renovada hasta ${dayjs(newExpiry).format('DD/MM/YYYY')}`)
+    setRenewModal(false)
+  }
 
   const filtered = licenses.filter(l => {
     if (filterStatus && l.status !== filterStatus) return false
@@ -125,12 +152,17 @@ export default function Licenses() {
       },
     },
     {
-      title: '', key: 'actions', width: 100,
+      title: '', key: 'actions', width: 120,
       render: (_, record) => (
         <Space>
           <Tooltip title="Copiar código"><Button icon={<CopyOutlined />} size="small" onClick={() => copyCode(record.licenseCode)} /></Tooltip>
           <Tooltip title="Editar"><Button icon={<EditOutlined />} size="small" onClick={() => openEdit(record)} /></Tooltip>
-          {record.status !== 'blocked' && (
+          {record.status !== 'draft' && (
+            <Tooltip title="Renovar">
+              <Button icon={<SyncOutlined />} size="small" onClick={() => openRenew(record)} style={{ color: '#2563EB', borderColor: '#2563EB' }} />
+            </Tooltip>
+          )}
+          {record.status !== 'blocked' && record.status !== 'draft' && (
             <Popconfirm title="¿Bloquear esta licencia?" onConfirm={() => handleBlock(record)} okText="Bloquear" okButtonProps={{ danger: true }} cancelText="Cancelar">
               <Tooltip title="Bloquear"><Button icon={<StopOutlined />} size="small" danger /></Tooltip>
             </Popconfirm>
@@ -182,6 +214,77 @@ export default function Licenses() {
         scroll={{ x: 'max-content' }}
         pagination={{ pageSize: 10, showTotal: (t, r) => `${r[0]}–${r[1]} de ${t}` }}
       />
+
+      {/* Modal renovación */}
+      <Modal
+        title={renewTarget ? `Renovar: ${renewTarget.licenseCode}` : 'Renovar licencia'}
+        open={renewModal}
+        onOk={handleRenew}
+        onCancel={() => setRenewModal(false)}
+        okText="Confirmar renovación"
+        okButtonProps={{ style: { background: '#2563EB', borderColor: '#2563EB' } }}
+        cancelText="Cancelar"
+        width={480}
+      >
+        {renewTarget && (() => {
+          const isExpired = renewTarget.expiresAt && dayjs(renewTarget.expiresAt).isBefore(dayjs())
+          const base      = getRenewBase(renewTarget)
+          const newExpiry = base.add(renewMonths, 'month')
+          return (
+            <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {isExpired && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="La licencia está vencida — la renovación parte desde hoy."
+                />
+              )}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px', color: '#999', marginBottom: 4 }}>Empresa</div>
+                  <div style={{ fontWeight: 600 }}>{renewTarget.companyName}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px', color: '#999', marginBottom: 4 }}>Vencimiento actual</div>
+                  <div style={{ color: isExpired ? '#ff4d4f' : undefined, fontWeight: 600 }}>
+                    {renewTarget.expiresAt ? dayjs(renewTarget.expiresAt).format('DD/MM/YYYY') : '—'}
+                    {isExpired && <span style={{ fontWeight: 400, marginLeft: 6, fontSize: 12 }}>(vencida)</span>}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px', color: '#999', marginBottom: 8 }}>Extender por</div>
+                <Radio.Group value={renewMonths} onChange={e => setRenewMonths(e.target.value)}>
+                  <Radio.Button value={1}>1 mes</Radio.Button>
+                  <Radio.Button value={3}>3 meses</Radio.Button>
+                  <Radio.Button value={6}>6 meses</Radio.Button>
+                  <Radio.Button value={12}>12 meses</Radio.Button>
+                </Radio.Group>
+              </div>
+
+              <div style={{ background: '#f0f7ff', border: '1px solid #bae0ff', borderRadius: 8, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#555', fontSize: 13 }}>
+                  {isExpired ? 'Desde hoy' : `Desde ${base.format('DD/MM/YYYY')}`} + {renewMonths} {renewMonths === 1 ? 'mes' : 'meses'}
+                </span>
+                <span style={{ fontWeight: 700, fontSize: 16, color: '#2563EB' }}>
+                  {newExpiry.format('DD/MM/YYYY')}
+                </span>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px', color: '#999', marginBottom: 6 }}>Notas (opcional)</div>
+                <Input.TextArea
+                  rows={2}
+                  placeholder="Ej: Renovación manual — pago recibido por transferencia"
+                  value={renewNotes}
+                  onChange={e => setRenewNotes(e.target.value)}
+                />
+              </div>
+            </div>
+          )
+        })()}
+      </Modal>
 
       <Modal
         title={editing ? `Editar: ${editing.licenseCode}` : 'Nueva licencia'}
