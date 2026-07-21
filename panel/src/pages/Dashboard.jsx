@@ -1,29 +1,26 @@
 import { Card, Statistic, Table, Tag, Typography } from 'antd'
-import { CheckCircleOutlined, StopOutlined, ClockCircleOutlined, EyeOutlined } from '@ant-design/icons'
+import {
+  CheckCircleOutlined, StopOutlined, ClockCircleOutlined,
+  ExclamationCircleOutlined, BankOutlined, UserOutlined,
+} from '@ant-design/icons'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import { mockLicenses, mockUserAccess, STATUS_LABELS } from '../mock/data'
+import { mockLicenses, mockUserAccess, mockCompanies, mockAdminUsers, STATUS_LABELS } from '../mock/data'
+import { auth } from '../firebase'
 
 dayjs.extend(relativeTime)
 
 const { Title } = Typography
 
-const statuses = mockLicenses.map(l => {
-  if (l.status !== 'active' && l.status !== 'draft') return l.status
-  if (l.status === 'active' && l.expiresAt && new Date(l.expiresAt) < new Date()) return 'expired'
-  return l.status
-})
-
-const stats = {
-  active:  statuses.filter(s => s === 'active').length,
-  blocked: statuses.filter(s => s === 'blocked').length,
-  expired: statuses.filter(s => s === 'expired').length,
-  users: mockUserAccess.length,
+function getMockRole() {
+  const email = auth.currentUser?.email || ''
+  const user  = mockAdminUsers.find(u => u.email === email)
+  return user?.role || 'admin'
 }
 
 const licenseColumns = [
-  { title: 'Empresa', dataIndex: 'companyName', key: 'company' },
-  { title: 'Código', dataIndex: 'licenseCode', key: 'code', render: v => <code style={{ fontSize: 12 }}>{v}</code> },
+  { title: 'Empresa',  dataIndex: 'companyName', key: 'company' },
+  { title: 'Código',   dataIndex: 'licenseCode',  key: 'code', render: v => <code style={{ fontSize: 12 }}>{v}</code> },
   {
     title: 'Estado', dataIndex: 'status', key: 'status',
     render: s => {
@@ -38,49 +35,119 @@ const licenseColumns = [
 ]
 
 const deviceColumns = [
-  { title: 'Meta User ID', dataIndex: 'metaUserId', key: 'id', render: v => <code style={{ fontSize: 12 }}>{v}</code> },
+  { title: 'Meta User ID', dataIndex: 'metaUserId',   key: 'id',      render: v => <code style={{ fontSize: 12 }}>{v}</code> },
+  { title: 'Empresa',      dataIndex: 'companyName',  key: 'company' },
+  { title: 'Último acceso', dataIndex: 'lastSeenAt',  key: 'last',    render: v => dayjs(v).fromNow() },
+]
+
+const expiringColumns = [
   { title: 'Empresa', dataIndex: 'companyName', key: 'company' },
+  { title: 'Código',  dataIndex: 'licenseCode',  key: 'code', render: v => <code style={{ fontSize: 12 }}>{v}</code> },
   {
-    title: 'Último acceso', dataIndex: 'lastSeenAt', key: 'last',
-    render: v => dayjs(v).fromNow(),
+    title: 'Vence en', dataIndex: 'expiresAt', key: 'diff',
+    render: v => {
+      const diff = dayjs(v).diff(dayjs(), 'day')
+      return <Tag color="warning">{diff === 0 ? 'Hoy' : `${diff} día${diff !== 1 ? 's' : ''}`}</Tag>
+    },
+  },
+  {
+    title: 'Fecha', dataIndex: 'expiresAt', key: 'date',
+    render: v => dayjs(v).format('DD/MM/YYYY'),
   },
 ]
 
 export default function Dashboard() {
+  const role  = getMockRole()
+  const today = dayjs()
+
+  const expiringSoonList = mockLicenses
+    .filter(l => {
+      if (!l.expiresAt || l.status === 'draft') return false
+      const diff = dayjs(l.expiresAt).diff(today, 'day')
+      return diff >= 0 && diff <= 7
+    })
+    .sort((a, b) => dayjs(a.expiresAt).diff(dayjs(b.expiresAt)))
+
+  const computedStatuses = mockLicenses.map(l => {
+    if (l.status === 'draft') return 'draft'
+    if (l.status !== 'active') return l.status
+    if (l.expiresAt && dayjs(l.expiresAt).isBefore(today)) return 'expired'
+    return 'active'
+  })
+
+  const stats = {
+    active:          computedStatuses.filter(s => s === 'active').length,
+    blocked:         computedStatuses.filter(s => s === 'blocked').length,
+    expired:         computedStatuses.filter(s => s === 'expired').length,
+    expiringSoon:    expiringSoonList.length,
+    activeCompanies: mockCompanies.filter(c => c.status === 'active').length,
+  }
+
+  const adminKpis = [
+    { title: 'Licencias activas',  value: stats.active,       color: '#52c41a', icon: <CheckCircleOutlined /> },
+    { title: 'Próximas a vencer',  value: stats.expiringSoon, color: stats.expiringSoon > 0 ? '#D97706' : '#52c41a', icon: <ExclamationCircleOutlined />, sub: '≤ 7 días', alert: stats.expiringSoon > 0 },
+    { title: 'Vencidas',           value: stats.expired,      color: '#faad14', icon: <ClockCircleOutlined /> },
+    { title: 'Bloqueadas',         value: stats.blocked,      color: '#F65C7C', icon: <StopOutlined /> },
+  ]
+
+  const marketingKpis = [
+    { title: 'Licencias activas',  value: stats.active,          color: '#52c41a', icon: <CheckCircleOutlined /> },
+    { title: 'Próximas a vencer',  value: stats.expiringSoon,    color: stats.expiringSoon > 0 ? '#D97706' : '#52c41a', icon: <ExclamationCircleOutlined />, sub: '≤ 7 días', alert: stats.expiringSoon > 0 },
+    { title: 'Vencidas',           value: stats.expired,         color: '#faad14', icon: <ClockCircleOutlined /> },
+    { title: 'Empresas activas',   value: stats.activeCompanies, color: '#2563EB', icon: <BankOutlined /> },
+  ]
+
+  const kpis = role === 'admin' ? adminKpis : marketingKpis
+
+  const bottomLeft  = role === 'admin'
+    ? { title: 'Licencias recientes', data: mockLicenses.slice(0, 5),    columns: licenseColumns }
+    : { title: 'Próximas a vencer',   data: expiringSoonList,             columns: expiringColumns }
+
+  const bottomRight = role === 'admin'
+    ? { title: 'Últimos accesos',      data: mockUserAccess.slice(0, 5),  columns: deviceColumns }
+    : { title: 'Licencias recientes',  data: mockLicenses.slice(0, 5),    columns: licenseColumns }
+
   return (
     <div>
       <Title level={4} style={{ margin: '0 0 20px' }}>Dashboard</Title>
 
       <div className="stat-cards">
-        <Card>
-          <Statistic title="Licencias activas" value={stats.active} prefix={<CheckCircleOutlined style={{ color: '#52c41a' }} />} styles={{ content: { color: '#52c41a' } }} />
-        </Card>
-        <Card>
-          <Statistic title="Bloqueadas" value={stats.blocked} prefix={<StopOutlined style={{ color: '#F65C7C' }} />} styles={{ content: { color: '#F65C7C' } }} />
-        </Card>
-        <Card>
-          <Statistic title="Vencidas" value={stats.expired} prefix={<ClockCircleOutlined style={{ color: '#faad14' }} />} styles={{ content: { color: '#faad14' } }} />
-        </Card>
-        <Card>
-          <Statistic title="Usuarios registrados" value={stats.users} prefix={<EyeOutlined />} />
-        </Card>
+        {kpis.map(kpi => (
+          <Card
+            key={kpi.title}
+            style={kpi.alert ? { borderColor: '#D97706', borderWidth: 1.5 } : {}}
+          >
+            <Statistic
+              title={
+                <span>
+                  {kpi.title}
+                  {kpi.sub && <span style={{ fontWeight: 400, color: '#bbb', marginLeft: 6, fontSize: 11 }}>{kpi.sub}</span>}
+                </span>
+              }
+              value={kpi.value}
+              prefix={<span style={{ color: kpi.color }}>{kpi.icon}</span>}
+              styles={{ content: { color: kpi.color } }}
+            />
+          </Card>
+        ))}
       </div>
 
       <div className="dashboard-grid">
-        <Card title="Licencias recientes" size="small">
+        <Card title={bottomLeft.title} size="small">
           <Table
-            dataSource={mockLicenses.slice(0, 5)}
-            columns={licenseColumns}
+            dataSource={bottomLeft.data}
+            columns={bottomLeft.columns}
             rowKey="id"
             pagination={false}
             size="small"
             scroll={{ x: 'max-content' }}
+            locale={{ emptyText: 'Sin datos' }}
           />
         </Card>
-        <Card title="Últimos accesos" size="small">
+        <Card title={bottomRight.title} size="small">
           <Table
-            dataSource={mockUserAccess.slice(0, 5)}
-            columns={deviceColumns}
+            dataSource={bottomRight.data}
+            columns={bottomRight.columns}
             rowKey="id"
             pagination={false}
             size="small"
