@@ -2,7 +2,7 @@ import { Table, Tag, Select, Input, Typography, Space, Alert } from 'antd'
 import { useState } from 'react'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import { mockInstallations, mockCompanies, mockLicenses } from '../mock/data'
+import { mockUserAccess, mockCompanies, mockLicenses } from '../mock/data'
 
 dayjs.extend(relativeTime)
 
@@ -20,13 +20,13 @@ export default function Devices() {
   const [filterCompany, setFilterCompany] = useState(null)
   const [search, setSearch] = useState('')
 
-  const filtered = mockInstallations.filter(d => {
+  const filtered = mockUserAccess.filter(d => {
     if (filterCompany && d.companyId !== filterCompany) return false
-    if (search && !d.installId.toLowerCase().includes(search.toLowerCase())) return false
+    if (search && !d.metaUserId.toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
 
-  const offlineDevices = mockInstallations.filter(d => {
+  const offlineUsers = mockUserAccess.filter(d => {
     const diffHours = (Date.now() - new Date(d.lastSeenAt).getTime()) / (1000 * 60 * 60)
     return diffHours > OFFLINE_THRESHOLD_HOURS
   })
@@ -40,7 +40,7 @@ export default function Devices() {
           <code style={{ fontSize: 12 }}>{license?.licenseCode || record.licenseId}</code>
         </div>
         <div>
-          <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Modelo</Text>
+          <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Modelo de visor</Text>
           <Text>{record.deviceModel || <span style={{ color: '#bbb' }}>—</span>}</Text>
         </div>
         <div>
@@ -61,7 +61,7 @@ export default function Devices() {
 
   const columns = [
     {
-      title: 'ID Visor', dataIndex: 'installId', key: 'id',
+      title: 'Meta User ID', dataIndex: 'metaUserId', key: 'id',
       render: v => <code style={{ fontSize: 12 }}>{v}</code>,
     },
     { title: 'Empresa', dataIndex: 'companyName', key: 'company' },
@@ -77,7 +77,7 @@ export default function Devices() {
         return (
           <span>
             {dayjs(v).fromNow()}
-            {isOffline && <Tag color="warning" style={{ marginLeft: 8 }}>Offline &gt;{OFFLINE_THRESHOLD_HOURS}hs</Tag>}
+            {isOffline && <Tag color="warning" style={{ marginLeft: 8 }}>Sin conexión &gt;{OFFLINE_THRESHOLD_HOURS}hs</Tag>}
           </span>
         )
       },
@@ -87,14 +87,14 @@ export default function Devices() {
   return (
     <div>
       <div className="page-header">
-        <Title level={4} style={{ margin: 0 }}>Visores</Title>
+        <Title level={4} style={{ margin: 0 }}>Accesos</Title>
       </div>
 
-      {offlineDevices.length > 0 && (
+      {offlineUsers.length > 0 && (
         <Alert
           type="warning"
           style={{ marginBottom: 16 }}
-          message={`${offlineDevices.length} visor(es) sin conexión hace más de ${OFFLINE_THRESHOLD_HOURS} horas`}
+          message={`${offlineUsers.length} usuario(s) sin conexión hace más de ${OFFLINE_THRESHOLD_HOURS} horas`}
           description="Pueden estar corriendo en modo offline. Si su grace period venció, el próximo arranque será denegado."
           showIcon
         />
@@ -109,7 +109,7 @@ export default function Devices() {
           options={mockCompanies.map(c => ({ value: c.id, label: c.name }))}
         />
         <Input
-          placeholder="Buscar por ID de visor..."
+          placeholder="Buscar por Meta User ID..."
           value={search}
           onChange={e => setSearch(e.target.value)}
           style={{ width: 260 }}

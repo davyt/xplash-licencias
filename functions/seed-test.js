@@ -35,7 +35,7 @@ async function main() {
     companyId:          'company_test',
     status:             'active',
     plan:               'test',
-    maxDevices:         10,
+    maxUsers:           10,
     offlineGraceHours:  48,
     enabledModules: [
       'derrame_combustible',
@@ -54,7 +54,7 @@ async function main() {
 curl -X POST \\
   https://southamerica-east1-xplash-licencias-a7a58.cloudfunctions.net/validateLicense \\
   -H "Content-Type: application/json" \\
-  -d '{"licenseCode":"XPL-TEST-001","installId":"quest-dev-001","moduleId":"derrame_combustible","appVersion":"0.1.0"}'
+  -d '{"licenseCode":"XPL-TEST-001","metaUserId":"mu_test001","moduleId":"derrame_combustible","appVersion":"0.1.0"}'
 `)
   console.log('Respuesta esperada: { "allowed": true, "validUntil": "2027-12-31T23:59:59Z", "offlineGraceHours": 48 }')
 

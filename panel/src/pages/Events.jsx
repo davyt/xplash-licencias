@@ -36,7 +36,7 @@ export default function Events() {
     },
     { title: 'Empresa', dataIndex: 'companyName', key: 'company' },
     {
-      title: 'Visor', dataIndex: 'installId', key: 'install',
+      title: 'Meta User ID', dataIndex: 'metaUserId', key: 'user',
       render: v => <code style={{ fontSize: 12 }}>{v}</code>,
     },
     {

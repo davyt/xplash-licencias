@@ -2,7 +2,7 @@ import { Card, Statistic, Table, Tag, Typography } from 'antd'
 import { CheckCircleOutlined, StopOutlined, ClockCircleOutlined, EyeOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import { mockLicenses, mockInstallations, STATUS_LABELS } from '../mock/data'
+import { mockLicenses, mockUserAccess, STATUS_LABELS } from '../mock/data'
 
 dayjs.extend(relativeTime)
 
@@ -18,7 +18,7 @@ const stats = {
   active:  statuses.filter(s => s === 'active').length,
   blocked: statuses.filter(s => s === 'blocked').length,
   expired: statuses.filter(s => s === 'expired').length,
-  devices: mockInstallations.length,
+  users: mockUserAccess.length,
 }
 
 const licenseColumns = [
@@ -38,7 +38,7 @@ const licenseColumns = [
 ]
 
 const deviceColumns = [
-  { title: 'Visor', dataIndex: 'installId', key: 'id', render: v => <code style={{ fontSize: 12 }}>{v}</code> },
+  { title: 'Meta User ID', dataIndex: 'metaUserId', key: 'id', render: v => <code style={{ fontSize: 12 }}>{v}</code> },
   { title: 'Empresa', dataIndex: 'companyName', key: 'company' },
   {
     title: 'Último acceso', dataIndex: 'lastSeenAt', key: 'last',
@@ -62,7 +62,7 @@ export default function Dashboard() {
           <Statistic title="Vencidas" value={stats.expired} prefix={<ClockCircleOutlined style={{ color: '#faad14' }} />} styles={{ content: { color: '#faad14' } }} />
         </Card>
         <Card>
-          <Statistic title="Visores registrados" value={stats.devices} prefix={<EyeOutlined />} />
+          <Statistic title="Usuarios registrados" value={stats.users} prefix={<EyeOutlined />} />
         </Card>
       </div>
 
@@ -77,9 +77,9 @@ export default function Dashboard() {
             scroll={{ x: 'max-content' }}
           />
         </Card>
-        <Card title="Últimos accesos de visores" size="small">
+        <Card title="Últimos accesos" size="small">
           <Table
-            dataSource={mockInstallations.slice(0, 5)}
+            dataSource={mockUserAccess.slice(0, 5)}
             columns={deviceColumns}
             rowKey="id"
             pagination={false}

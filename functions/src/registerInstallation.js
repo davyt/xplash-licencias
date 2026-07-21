@@ -3,18 +3,19 @@ const { db } = require('./admin')
 
 /**
  * POST /registerInstallation
- * Body: { licenseCode, installId, appVersion }
- * Usado para pre-registrar un visor antes de que entre al módulo.
+ * Body: { licenseCode, metaUserId, appVersion }
+ * Pre-registra un usuario antes de que entre al módulo (opcional).
+ * La validación principal ocurre en validateLicense.
  */
 const registerInstallation = onRequest({ cors: false, region: 'southamerica-east1' }, async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const { licenseCode, installId, appVersion } = req.body
+  const { licenseCode, metaUserId, appVersion } = req.body
 
-  if (!licenseCode || !installId) {
-    return res.status(400).json({ error: 'Faltan parámetros: licenseCode, installId' })
+  if (!licenseCode || !metaUserId) {
+    return res.status(400).json({ error: 'Faltan parámetros: licenseCode, metaUserId' })
   }
 
   try {
@@ -31,9 +32,9 @@ const registerInstallation = onRequest({ cors: false, region: 'southamerica-east
     const licenseDoc = licensesSnap.docs[0]
     const license = licenseDoc.data()
 
-    const ref = db.collection('installations').doc(`${licenseDoc.id}_${installId}`)
+    const ref = db.collection('userAccess').doc(`${licenseDoc.id}_${metaUserId}`)
     await ref.set({
-      installId,
+      metaUserId,
       licenseId: licenseDoc.id,
       companyId: license.companyId,
       appVersion: appVersion || null,

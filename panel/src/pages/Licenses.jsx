@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Table, Button, Tag, Input, Select, Modal, Form, Checkbox, InputNumber, DatePicker, Typography, Space, Tooltip, message, Popconfirm } from 'antd'
 import { PlusOutlined, EditOutlined, CopyOutlined, StopOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import { mockLicenses, mockCompanies, mockInstallations, MODULES, PLANS, STATUS_LABELS } from '../mock/data'
+import { mockLicenses, mockCompanies, mockUserAccess, MODULES, PLANS, STATUS_LABELS } from '../mock/data'
 
 const { Title } = Typography
 
@@ -41,7 +41,7 @@ export default function Licenses() {
   const openCreate = () => {
     setEditing(null)
     form.resetFields()
-    form.setFieldsValue({ status: 'draft', offlineGraceHours: 48, maxDevices: 1, enabledModules: [] })
+    form.setFieldsValue({ status: 'draft', offlineGraceHours: 48, maxUsers: 1, enabledModules: [] })
     setModalOpen(true)
   }
 
@@ -99,14 +99,14 @@ export default function Licenses() {
           }),
     },
     {
-      title: 'Visores', key: 'devices',
+      title: 'Usuarios', key: 'users',
       render: (_, r) => {
-        const registered = mockInstallations.filter(i => i.licenseId === r.id).length
-        const atMax = registered >= r.maxDevices
-        const nearMax = !atMax && registered >= r.maxDevices - 1 && r.maxDevices > 1
+        const registered = mockUserAccess.filter(u => u.licenseId === r.id).length
+        const atMax = registered >= r.maxUsers
+        const nearMax = !atMax && registered >= r.maxUsers - 1 && r.maxUsers > 1
         return (
           <span style={{ color: atMax ? '#ff4d4f' : nearMax ? '#faad14' : undefined, fontVariantNumeric: 'tabular-nums' }}>
-            {registered}/{r.maxDevices}
+            {registered}/{r.maxUsers}
           </span>
         )
       },
@@ -207,8 +207,8 @@ export default function Licenses() {
             <Form.Item name="plan" label="Plan">
               <Select options={PLANS.map(p => ({ value: p.value, label: p.label }))} />
             </Form.Item>
-            <Form.Item name="maxDevices" label="Visores permitidos" rules={[{ required: true }]}>
-              <InputNumber min={1} max={50} style={{ width: '100%' }} />
+            <Form.Item name="maxUsers" label="Usuarios permitidos" rules={[{ required: true }]}>
+              <InputNumber min={1} max={200} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item name="offlineGraceHours" label="Grace period (horas)">
               <InputNumber min={0} max={720} style={{ width: '100%' }} />

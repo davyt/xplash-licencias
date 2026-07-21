@@ -10,6 +10,7 @@ import {
   SettingOutlined,
   LogoutOutlined,
   UserOutlined,
+  TeamOutlined,
   SunOutlined,
   MoonOutlined,
   MenuOutlined,
@@ -17,6 +18,7 @@ import {
 import { signOut } from 'firebase/auth'
 import { auth } from '../firebase'
 import { useAppTheme } from '../App'
+import NotificationBell from '../components/NotificationBell'
 
 const { Sider, Header, Content } = Layout
 const { useBreakpoint } = Grid
@@ -25,9 +27,10 @@ const navItems = [
   { key: '/dashboard',      icon: <DashboardOutlined />,          label: 'Dashboard' },
   { key: '/empresas',       icon: <BankOutlined />,               label: 'Empresas' },
   { key: '/licencias',      icon: <SafetyCertificateOutlined />,  label: 'Licencias' },
-  { key: '/visores',        icon: <EyeOutlined />,                label: 'Visores' },
+  { key: '/accesos',        icon: <EyeOutlined />,                label: 'Accesos' },
   { key: '/eventos',        icon: <UnorderedListOutlined />,      label: 'Eventos' },
   { type: 'divider' },
+  { key: '/equipo',         icon: <TeamOutlined />,               label: 'Equipo' },
   { key: '/configuracion',  icon: <SettingOutlined />,            label: 'Configuración' },
 ]
 
@@ -119,6 +122,8 @@ export default function AppLayout() {
               {dark ? <SunOutlined /> : <MoonOutlined />}
             </div>
           </Tooltip>
+
+          <NotificationBell dark={dark} />
 
           <Dropdown
             menu={{ items: userMenuItems, onClick: ({ key }) => key === 'logout' && handleLogout() }}
