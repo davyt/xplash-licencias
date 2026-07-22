@@ -16,14 +16,14 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
-    match /licenses/{licenseId}/modules/{moduleId} {
-      allow read, write: if isAdmin();
-    }
-
-    // Installations: written by Cloud Function (admin SDK bypasses rules)
-    match /installations/{installId} {
+    // userAccess: written by Cloud Function (admin SDK bypasses rules)
+    match /userAccess/{docId} {
       allow read: if isAdmin();
       allow write: if false; // only via Cloud Function
+    }
+
+    match /contracts/{contractId} {
+      allow read, write: if isAdmin();
     }
 
     // Events: written by Cloud Function
