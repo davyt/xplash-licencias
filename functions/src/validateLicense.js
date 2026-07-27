@@ -102,15 +102,31 @@ const validateLicense = onRequest({ cors: false, region: 'southamerica-east1' },
       return res.json({ allowed: false, reason: 'Empresa suspendida' })
     }
 
-    // maxUsers check — before registering, so a new unknown user can't register past the limit
-    const maxUsers = license.maxUsers || 1
-    const userAccessSnap = await db.collection('userAccess').where('licenseId', '==', licenseDoc.id).get()
-    const knownUserIds = userAccessSnap.docs.map(d => d.data().metaUserId)
-    const isKnown = knownUserIds.includes(metaUserId)
+    if (license.requiresActivation) {
+      // Activation-based licenses: user must have activated via /activateUser first
+      const userAccessRef = db.collection('userAccess').doc(`${licenseDoc.id}_${metaUserId}`)
+      const userAccessSnap = await userAccessRef.get()
 
-    if (!isKnown && knownUserIds.length >= maxUsers) {
-      await logEvent({ licenseCode, metaUserId, moduleId, appVersion, allowed: false, reason: `Límite de ${maxUsers} usuario(s) alcanzado`, licenseId: licenseDoc.id, companyId: license.companyId })
-      return res.json({ allowed: false, reason: `Límite de ${maxUsers} usuario(s) alcanzado` })
+      if (!userAccessSnap.exists) {
+        await logEvent({ licenseCode, metaUserId, moduleId, appVersion, allowed: false, reason: 'Usuario no activado', licenseId: licenseDoc.id, companyId: license.companyId })
+        return res.json({ allowed: false, reason: 'Usuario no activado. Ingresá tu código de activación.' })
+      }
+
+      if (userAccessSnap.data().status === 'blocked') {
+        await logEvent({ licenseCode, metaUserId, moduleId, appVersion, allowed: false, reason: 'Usuario bloqueado', licenseId: licenseDoc.id, companyId: license.companyId })
+        return res.json({ allowed: false, reason: 'Usuario bloqueado.' })
+      }
+    } else {
+      // Legacy: maxUsers check — new unknown user can't register past the limit
+      const maxUsers = license.maxUsers || 1
+      const userAccessSnap = await db.collection('userAccess').where('licenseId', '==', licenseDoc.id).get()
+      const knownUserIds = userAccessSnap.docs.map(d => d.data().metaUserId)
+      const isKnown = knownUserIds.includes(metaUserId)
+
+      if (!isKnown && knownUserIds.length >= maxUsers) {
+        await logEvent({ licenseCode, metaUserId, moduleId, appVersion, allowed: false, reason: `Límite de ${maxUsers} usuario(s) alcanzado`, licenseId: licenseDoc.id, companyId: license.companyId })
+        return res.json({ allowed: false, reason: `Límite de ${maxUsers} usuario(s) alcanzado` })
+      }
     }
 
     await registerOrUpdateUserAccess({
