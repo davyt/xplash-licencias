@@ -1,8 +1,12 @@
 import { useState, useMemo } from 'react'
-import { Table, Tag, Select, Input, Typography, Space, Alert, Spin } from 'antd'
+import { Table, Tag, Select, Input, Typography, Space, Alert, Spin, Button, Popconfirm, message } from 'antd'
+import { StopOutlined, CheckCircleOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
+import { doc, updateDoc } from 'firebase/firestore'
+import { db } from '../firebase'
 import { useCollection } from '../hooks/useCollection'
+import { useRole } from '../hooks/useRole'
 
 dayjs.extend(relativeTime)
 const { Title, Text } = Typography
@@ -13,12 +17,14 @@ const PLATFORM_LABELS = { quest2: 'Meta Quest 2', quest3: 'Meta Quest 3', questp
 function toDate(v) { return v?.toDate ? v.toDate() : v ? new Date(v) : null }
 
 export default function Devices() {
+  const role = useRole()
   const [userAccess, loading] = useCollection('userAccess')
   const [companies]           = useCollection('companies')
   const [licenses]            = useCollection('licenses')
 
   const [filterCompany, setFilterCompany] = useState(null)
   const [search, setSearch]               = useState('')
+  const [blocking, setBlocking]           = useState(null)
 
   const companyById = useMemo(() => Object.fromEntries(companies.map(c => [c.id, c])), [companies])
   const licenseById = useMemo(() => Object.fromEntries(licenses.map(l => [l.id, l])),   [licenses])
@@ -43,6 +49,20 @@ export default function Devices() {
     const last = toDate(d.lastSeenAt)
     return last && (Date.now() - last.getTime()) / 3600000 > OFFLINE_THRESHOLD_HOURS
   }).length, [rows])
+
+  const handleBlockToggle = async (record) => {
+    const newStatus = record.status === 'blocked' ? 'active' : 'blocked'
+    setBlocking(record.id)
+    try {
+      await updateDoc(doc(db, 'userAccess', record.id), { status: newStatus })
+      message.success(newStatus === 'blocked' ? 'Usuario bloqueado' : 'Usuario desbloqueado')
+    } catch (err) {
+      console.error(err)
+      message.error('No se pudo actualizar el estado')
+    } finally {
+      setBlocking(null)
+    }
+  }
 
   const expandedRowRender = (record) => {
     const license = licenseById[record.licenseId]
@@ -116,6 +136,33 @@ export default function Devices() {
         )
       },
     },
+    ...(role === 'admin' ? [{
+      title: '', key: 'actions', width: 130,
+      render: (_, record) => {
+        const isBlocked = record.status === 'blocked'
+        return (
+          <Popconfirm
+            title={isBlocked ? '¿Desbloquear este usuario?' : '¿Bloquear este usuario?'}
+            description={isBlocked
+              ? 'El usuario podrá volver a validar su licencia.'
+              : 'El usuario no podrá acceder hasta que sea desbloqueado.'}
+            onConfirm={() => handleBlockToggle(record)}
+            okText={isBlocked ? 'Desbloquear' : 'Bloquear'}
+            cancelText="Cancelar"
+            okButtonProps={{ danger: !isBlocked }}
+          >
+            <Button
+              size="small"
+              icon={isBlocked ? <CheckCircleOutlined /> : <StopOutlined />}
+              loading={blocking === record.id}
+              danger={!isBlocked}
+            >
+              {isBlocked ? 'Desbloquear' : 'Bloquear'}
+            </Button>
+          </Popconfirm>
+        )
+      },
+    }] : []),
   ]
 
   if (loading) return <Spin style={{ display: 'block', margin: '80px auto' }} />
