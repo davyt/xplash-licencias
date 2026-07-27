@@ -110,11 +110,12 @@ export default function Team() {
     setResending(user.uid)
     try {
       const res = await fn.resend({ uid: user.uid })
-      const link = res.data?.link || res.data?.inviteLink || null
+      const raw = res.data
+      const link = raw?.result?.activationLink || raw?.activationLink || null
       if (link) {
         setLinkModal({ email: user.email, link })
       } else {
-        message.success('Link de activación generado')
+        message.warning('La función no devolvió un link de activación.')
       }
     } catch (err) {
       console.error('resendActivationLink:', err)
