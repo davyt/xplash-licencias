@@ -9,8 +9,9 @@ import {
 } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useNotifications } from '../hooks/useNotifications'
-import { auth } from '../firebase'
-import { mockAdminUsers } from '../mock/data'
+import { useRole } from '../hooks/useRole'
+
+const STORAGE_KEY = 'xplash_dismissed_notifs'
 
 const SEVERITY = {
   critical: { color: '#F65C7C', bg: '#FEE2E2', icon: <ExclamationCircleOutlined /> },
@@ -18,19 +19,24 @@ const SEVERITY = {
   info:     { color: '#2563EB', bg: '#DBEAFE', icon: <InfoCircleOutlined /> },
 }
 
-function getMockRole() {
-  const email = auth.currentUser?.email || ''
-  const user  = mockAdminUsers.find(u => u.email === email)
-  return user?.role || 'admin'
+function loadDismissed() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    return saved ? new Set(JSON.parse(saved)) : new Set()
+  } catch { return new Set() }
+}
+
+function saveDismissed(set) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...set])) } catch {}
 }
 
 export default function NotificationBell({ dark }) {
-  const [open, setOpen]         = useState(false)
-  const [dismissed, setDismissed] = useState(new Set())
+  const [open, setOpen]           = useState(false)
+  const [dismissed, setDismissed] = useState(loadDismissed)
   const navigate = useNavigate()
 
-  const role    = getMockRole()
-  const all     = useNotifications(role)
+  const role = useRole()
+  const all  = useNotifications(role)
   const visible = all.filter(n => !dismissed.has(n.id))
 
   const criticalCount = visible.filter(n => n.severity === 'critical').length
@@ -45,9 +51,17 @@ export default function NotificationBell({ dark }) {
 
   const dismissOne = (e, id) => {
     e.stopPropagation()
-    setDismissed(prev => new Set([...prev, id]))
+    setDismissed(prev => {
+      const next = new Set([...prev, id])
+      saveDismissed(next)
+      return next
+    })
   }
-  const dismissAll = () => setDismissed(new Set(all.map(n => n.id)))
+  const dismissAll = () => {
+    const next = new Set(all.map(n => n.id))
+    saveDismissed(next)
+    setDismissed(next)
+  }
 
   const content = (
     <div style={{ width: 340, background: bg, borderRadius: 8 }}>
