@@ -1,56 +1,127 @@
-import { useState } from 'react'
-import { Table, Button, Tag, Modal, Form, Input, Select, Typography, Space, Tooltip, message, Popconfirm } from 'antd'
-import { PlusOutlined, EditOutlined } from '@ant-design/icons'
-import { mockAdminUsers } from '../mock/data'
+import { useState, useEffect } from 'react'
+import { Table, Button, Tag, Modal, Form, Input, Select, Typography, Space,
+         Popconfirm, message, Spin, Alert, Tooltip } from 'antd'
+import { PlusOutlined, DeleteOutlined, EditOutlined, LinkOutlined, ReloadOutlined } from '@ant-design/icons'
+import { httpsCallable } from 'firebase/functions'
+import { auth, functions } from '../firebase'
+import { useRole } from '../hooks/useRole'
 
-const { Title, Text } = Typography
+const { Title, Text, Paragraph } = Typography
 
 const ROLE_OPTIONS = [
-  { value: 'admin', label: 'Admin' },
+  { value: 'admin',     label: 'Admin'     },
   { value: 'marketing', label: 'Marketing' },
 ]
 
-const ROLE_COLORS = { admin: 'success', marketing: 'blue' }
-const ROLE_LABELS = { admin: 'Admin', marketing: 'Marketing' }
-const STATUS_COLORS = { active: 'success', pending: 'warning' }
-const STATUS_LABELS = { active: 'Activo', pending: 'Pendiente' }
+const fn = {
+  list:   httpsCallable(functions, 'listTeamUsers'),
+  invite: httpsCallable(functions, 'inviteTeamUser'),
+  update: httpsCallable(functions, 'updateTeamUser'),
+  remove: httpsCallable(functions, 'deleteTeamUser'),
+  resend: httpsCallable(functions, 'resendActivationLink'),
+}
 
 export default function Team() {
-  const [users, setUsers] = useState(mockAdminUsers)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editing, setEditing] = useState(null)
-  const [form] = Form.useForm()
+  const role    = useRole()
+  const isAdmin = role === 'admin'
 
-  const openInvite = () => {
-    setEditing(null)
-    form.resetFields()
-    form.setFieldsValue({ role: 'marketing' })
-    setModalOpen(true)
+  const [users, setUsers]           = useState([])
+  const [loading, setLoading]       = useState(true)
+  const [error, setError]           = useState(null)
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [editUser, setEditUser]     = useState(null)
+  const [linkModal, setLinkModal]   = useState(null)
+  const [saving, setSaving]         = useState(false)
+  const [resending, setResending]   = useState(null)
+  const [inviteForm] = Form.useForm()
+  const [editForm]   = Form.useForm()
+
+  const currentUid = auth.currentUser?.uid
+
+  const loadUsers = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fn.list()
+      setUsers(res.data?.users || res.data || [])
+    } catch (err) {
+      console.error('listTeamUsers:', err)
+      setError('No se pudieron cargar los usuarios. ' + (err.message || ''))
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const openEdit = (record) => {
-    setEditing(record)
-    form.setFieldsValue(record)
-    setModalOpen(true)
-  }
+  useEffect(() => { loadUsers() }, [])
 
-  const handleSave = () => {
-    form.validateFields().then(values => {
-      if (editing) {
-        setUsers(prev => prev.map(u => u.id === editing.id ? { ...u, ...values } : u))
-        message.success('Usuario actualizado')
-      } else {
-        const newUser = {
-          ...values,
-          id: `u${Date.now()}`,
-          status: 'pending',
-          createdAt: new Date().toISOString().slice(0, 10),
-        }
-        setUsers(prev => [...prev, newUser])
-        message.info(`Invitación enviada a ${values.email}`)
+  const handleInvite = () => {
+    inviteForm.validateFields().then(async values => {
+      setSaving(true)
+      try {
+        const res = await fn.invite({
+          email: values.email,
+          displayName: values.displayName,
+          role: values.role,
+        })
+        const link = res.data?.link || res.data?.inviteLink || null
+        message.success(`Usuario ${values.email} invitado`)
+        setInviteOpen(false)
+        inviteForm.resetFields()
+        await loadUsers()
+        if (link) setLinkModal({ email: values.email, link })
+      } catch (err) {
+        console.error('inviteTeamUser:', err)
+        message.error(err.message || 'No se pudo invitar el usuario')
+      } finally {
+        setSaving(false)
       }
-      setModalOpen(false)
     })
+  }
+
+  const handleUpdateRole = () => {
+    editForm.validateFields().then(async values => {
+      setSaving(true)
+      try {
+        await fn.update({ uid: editUser.uid, role: values.role })
+        message.success('Rol actualizado')
+        setEditUser(null)
+        await loadUsers()
+      } catch (err) {
+        console.error('updateTeamUser:', err)
+        message.error(err.message || 'No se pudo actualizar el rol')
+      } finally {
+        setSaving(false)
+      }
+    })
+  }
+
+  const handleDelete = async (user) => {
+    try {
+      await fn.remove({ uid: user.uid })
+      message.success(`${user.email} eliminado`)
+      await loadUsers()
+    } catch (err) {
+      console.error('deleteTeamUser:', err)
+      message.error(err.message || 'No se pudo eliminar el usuario')
+    }
+  }
+
+  const handleResend = async (user) => {
+    setResending(user.uid)
+    try {
+      const res = await fn.resend({ uid: user.uid })
+      const link = res.data?.link || res.data?.inviteLink || null
+      if (link) {
+        setLinkModal({ email: user.email, link })
+      } else {
+        message.success('Link de activación generado')
+      }
+    } catch (err) {
+      console.error('resendActivationLink:', err)
+      message.error(err.message || 'No se pudo generar el link')
+    } finally {
+      setResending(null)
+    }
   }
 
   const columns = [
@@ -58,55 +129,118 @@ export default function Team() {
       title: 'Nombre', dataIndex: 'displayName', key: 'name',
       render: (v, r) => (
         <div>
-          <div>{v || <Text type="secondary">—</Text>}</div>
-          <Text type="secondary" style={{ fontSize: 12 }}>{r.email}</Text>
+          <div style={{ fontWeight: 500 }}>{v || '—'}</div>
+          {r.uid === currentUid && (
+            <Text type="secondary" style={{ fontSize: 11 }}>Vos</Text>
+          )}
         </div>
       ),
     },
+    { title: 'Email', dataIndex: 'email', key: 'email' },
     {
       title: 'Rol', dataIndex: 'role', key: 'role',
-      render: r => <Tag color={ROLE_COLORS[r]}>{ROLE_LABELS[r]}</Tag>,
+      render: r => r === 'admin'
+        ? <Tag color="blue">Admin</Tag>
+        : r === 'marketing'
+          ? <Tag color="green">Marketing</Tag>
+          : <Tag color="default">{r || '—'}</Tag>,
       filters: ROLE_OPTIONS.map(o => ({ text: o.label, value: o.value })),
       onFilter: (value, record) => record.role === value,
     },
     {
-      title: 'Estado', dataIndex: 'status', key: 'status',
-      render: s => <Tag color={STATUS_COLORS[s]}>{STATUS_LABELS[s]}</Tag>,
+      title: 'Estado', key: 'status',
+      render: (_, r) => r.emailVerified
+        ? <Tag color="success">Activo</Tag>
+        : <Tag color="warning">Pendiente</Tag>,
     },
-    { title: 'Alta', dataIndex: 'createdAt', key: 'createdAt' },
-    {
-      title: '', key: 'actions', width: 50,
-      render: (_, record) => (
-        <Tooltip title="Editar rol">
-          <Button icon={<EditOutlined />} size="small" onClick={() => openEdit(record)} />
-        </Tooltip>
-      ),
-    },
+    ...(isAdmin ? [{
+      title: '', key: 'actions', width: 150,
+      render: (_, record) => {
+        const isSelf = record.uid === currentUid
+        return (
+          <Space>
+            <Tooltip title="Cambiar rol">
+              <Button
+                icon={<EditOutlined />}
+                size="small"
+                disabled={isSelf}
+                onClick={() => {
+                  setEditUser(record)
+                  editForm.setFieldsValue({ role: record.role })
+                }}
+              />
+            </Tooltip>
+            <Tooltip title="Generar link de activación">
+              <Button
+                icon={<LinkOutlined />}
+                size="small"
+                loading={resending === record.uid}
+                onClick={() => handleResend(record)}
+              />
+            </Tooltip>
+            <Popconfirm
+              title={`¿Eliminar a ${record.email}?`}
+              description="Se revocará su acceso al panel de inmediato."
+              onConfirm={() => handleDelete(record)}
+              okText="Eliminar"
+              okButtonProps={{ danger: true }}
+              cancelText="Cancelar"
+              disabled={isSelf}
+            >
+              <Tooltip title={isSelf ? 'No podés eliminarte a vos mismo' : 'Eliminar'}>
+                <Button
+                  icon={<DeleteOutlined />}
+                  size="small"
+                  danger
+                  disabled={isSelf}
+                />
+              </Tooltip>
+            </Popconfirm>
+          </Space>
+        )
+      },
+    }] : []),
   ]
 
-  const adminCount = users.filter(u => u.role === 'admin').length
-  const pendingCount = users.filter(u => u.status === 'pending').length
+  if (loading) return <Spin style={{ display: 'block', margin: '80px auto' }} />
 
   return (
     <div>
       <div className="page-header">
         <Title level={4} style={{ margin: 0 }}>Equipo</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openInvite}
-          style={{ background: '#F65C7C', borderColor: '#F65C7C' }}>
-          Invitar usuario
-        </Button>
+        <Space>
+          <Tooltip title="Recargar lista">
+            <Button icon={<ReloadOutlined />} onClick={loadUsers} />
+          </Tooltip>
+          {isAdmin && (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => { inviteForm.resetFields(); setInviteOpen(true) }}
+            >
+              Invitar usuario
+            </Button>
+          )}
+        </Space>
       </div>
 
-      <Space style={{ marginBottom: 16 }}>
-        <Text type="secondary">{users.length} usuario(s) · {adminCount} admin · {pendingCount} pendiente(s)</Text>
-      </Space>
+      {error && (
+        <Alert
+          type="error"
+          message={error}
+          showIcon
+          style={{ marginBottom: 16 }}
+          action={<Button size="small" onClick={loadUsers}>Reintentar</Button>}
+        />
+      )}
 
       <Table
         dataSource={users}
         columns={columns}
-        rowKey="id"
+        rowKey="uid"
         size="middle"
         pagination={false}
+        locale={{ emptyText: 'Sin usuarios cargados.' }}
       />
 
       <div style={{ marginTop: 16, padding: '10px 14px', background: 'rgba(0,0,0,0.03)', borderRadius: 6, fontSize: 12 }}>
@@ -117,28 +251,86 @@ export default function Team() {
         </Text>
       </div>
 
+      {/* Modal invitar */}
       <Modal
-        title={editing ? `Editar: ${editing.email}` : 'Invitar usuario'}
-        open={modalOpen}
-        onOk={handleSave}
-        onCancel={() => setModalOpen(false)}
-        okText={editing ? 'Guardar cambios' : 'Enviar invitación'}
-        okButtonProps={{ style: { background: '#F65C7C', borderColor: '#F65C7C' } }}
+        title="Invitar usuario"
+        open={inviteOpen}
+        onOk={handleInvite}
+        onCancel={() => setInviteOpen(false)}
+        okText="Enviar invitación"
+        okButtonProps={{ loading: saving }}
         cancelText="Cancelar"
+        width={480}
       >
-        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          {!editing && (
-            <Form.Item name="email" label="Email" rules={[{ required: true }, { type: 'email', message: 'Email inválido' }]}>
-              <Input placeholder="usuario@empresa.com" />
-            </Form.Item>
-          )}
-          <Form.Item name="displayName" label="Nombre">
+        <Form form={inviteForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item name="displayName" label="Nombre completo" rules={[{ required: true }]}>
             <Input placeholder="Nombre y apellido" />
           </Form.Item>
-          <Form.Item name="role" label="Rol" rules={[{ required: true }]}>
+          <Form.Item
+            name="email"
+            label="Email"
+            rules={[{ required: true }, { type: 'email', message: 'Email inválido' }]}
+          >
+            <Input placeholder="usuario@xplash.com" />
+          </Form.Item>
+          <Form.Item
+            name="role"
+            label="Rol"
+            rules={[{ required: true }]}
+            help="Admin: acceso completo. Marketing: solo lectura."
+          >
             <Select options={ROLE_OPTIONS} />
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Modal editar rol */}
+      <Modal
+        title={editUser ? `Cambiar rol — ${editUser.email}` : ''}
+        open={!!editUser}
+        onOk={handleUpdateRole}
+        onCancel={() => setEditUser(null)}
+        okText="Guardar"
+        okButtonProps={{ loading: saving }}
+        cancelText="Cancelar"
+        width={360}
+      >
+        <Form form={editForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item name="role" label="Nuevo rol" rules={[{ required: true }]}>
+            <Select options={ROLE_OPTIONS} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Modal link de activación */}
+      <Modal
+        title={linkModal ? `Link de activación — ${linkModal.email}` : ''}
+        open={!!linkModal}
+        onCancel={() => setLinkModal(null)}
+        footer={<Button type="primary" onClick={() => setLinkModal(null)}>Cerrar</Button>}
+        width={560}
+      >
+        {linkModal && (
+          <div style={{ marginTop: 16 }}>
+            <Text type="secondary" style={{ fontSize: 13 }}>
+              Enviá este link al usuario. Expira en 24 horas y solo puede usarse una vez.
+            </Text>
+            <Paragraph
+              copyable={{ tooltips: ['Copiar link', 'Copiado'] }}
+              style={{
+                marginTop: 12,
+                fontFamily: 'monospace',
+                fontSize: 12,
+                background: 'var(--ant-color-bg-layout, #f5f5f5)',
+                padding: '10px 14px',
+                borderRadius: 6,
+                wordBreak: 'break-all',
+              }}
+            >
+              {linkModal.link}
+            </Paragraph>
+          </div>
+        )}
       </Modal>
     </div>
   )
