@@ -29,7 +29,9 @@ Sistema propio de licencias para Xplash. Permite activar, bloquear y controlar e
 /functions   Cloud Functions
   /src
     index.js
-    validateLicense.js   <- función principal, endpoint para los visores Quest
+    validateLicense.js      <- función principal, endpoint para los visores Quest
+    activateUser.js         <- vincula activationCode con metaUserId (primera apertura)
+    checkActivation.js      <- consulta si un metaUserId ya está activado
     registerInstallation.js
     admin.js
   invite-users.js        <- script para crear usuarios en Firebase Auth y generar links de activación
@@ -43,12 +45,15 @@ firebase.json
 ## Modelo de datos Firestore
 - `companies/{id}` — name, email, contactName, contactPhone, status, notes, createdAt
 - `licenses/{id}` — licenseCode, companyId, status (active|blocked|paused|draft|expired), plan, maxUsers, offlineGraceHours, startDate, expiresAt, enabledModules[], notes
-- `userAccess/{licenseId_metaUserId}` — metaUserId, licenseId, companyId, appVersion, deviceModel, osVersion, platform, firstSeenAt, lastSeenAt
+- `userAccess/{licenseId_metaUserId}` — metaUserId, licenseId, companyId, name, email, activationCode, status (active|blocked), appVersion, deviceModel, osVersion, platform, firstSeenAt, lastSeenAt
 - `events/{id}` — licenseCode, licenseId, companyId, metaUserId, moduleId, appVersion, allowed, reason, createdAt
 - `contracts/{id}` — historial comercial por empresa (companyId, plan, maxUsers, startDate, endDate, notes)
+- `activationCodes/{code}` — licenseId, licenseCode, companyId, name, email, status (pending|activated|blocked), metaUserId, activatedAt, createdAt
 - `adminUsers/{uid}` — email (solo para regla isAdmin())
 
 ## Contrato integración Unreal Engine
+
+### /validateLicense (sin cambios)
 ```
 POST https://southamerica-east1-xplash-licencias-a7a58.cloudfunctions.net/validateLicense
 
@@ -61,6 +66,31 @@ Body opcional:
 OK:       { "allowed": true,  "validUntil": "2026-08-01T00:00:00Z", "offlineGraceHours": 48 }
 Denegado: { "allowed": false, "reason": "Licencia bloqueada por Xplash" }
 ```
+
+Si la licencia tiene `requiresActivation: true`, también puede denegar con:
+- `"Usuario no activado. Ingresá tu código de activación."` — metaUserId no tiene activationCode activo
+- `"Usuario bloqueado."` — el usuario fue bloqueado individualmente
+
+### /checkActivation (nuevo — primera apertura)
+```
+POST https://southamerica-east1-xplash-licencias-a7a58.cloudfunctions.net/checkActivation
+
+Body: { "metaUserId": "123456789", "licenseCode": "XPL-001" }
+
+OK (ya activado):  { "activated": true }
+No activado:       { "activated": false }
+```
+
+### /activateUser (nuevo — primera apertura, si checkActivation devuelve false)
+```
+POST https://southamerica-east1-xplash-licencias-a7a58.cloudfunctions.net/activateUser
+
+Body: { "activationCode": "A7K4P2", "metaUserId": "123456789" }
+
+OK:    { "activated": true }
+Error: { "activated": false, "reason": "Código inválido | Código ya utilizado | Código bloqueado" }
+```
+Idempotente: mismo metaUserId + mismo código → `{ activated: true }` (maneja reinstalaciones).
 
 **`metaUserId`**: ID de cuenta Meta obtenido automáticamente en Unreal con el nodo `Get Logged In User ID` del OVR Platform SDK. No requiere configuración del cliente. Formato: alfanumérico, 4–128 chars.
 
@@ -125,7 +155,8 @@ node invite-users.js
 ## Estado del proyecto
 - [x] Etapa 0: Scaffold completo (panel mock + functions codificadas)
 - [x] Etapa 1: Firebase real en producción, endpoint operativo, panel publicado con todas las funcionalidades UX
-- [ ] Etapa 2: Conectar panel a Firestore real (reemplazar mock data por SDK), ingresar datos operativos, activar roles reales
+- [~] Etapa 2: Panel conectado a Firestore real (PC B, sin push aún). Funciones de equipo deployadas (deleteTeamUser, inviteTeamUser, listTeamUsers, resendActivationLink, updateTeamUser). Backend activación por código completo (activateUser + checkActivation — 27 Jul).
+- [ ] Etapa 2 pendiente: gestión de activationCodes en panel, bloqueo individual de usuarios, ingreso datos reales
 - [ ] Etapa 3: Subdominio licencias.xplash.org + CNAME + QA final + Firebase App Check
 
 ## Archivos que NUNCA se commitean ni deployean
