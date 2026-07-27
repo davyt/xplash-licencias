@@ -1,32 +1,43 @@
-import { Table, Tag, Select, DatePicker, Typography, Space } from 'antd'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import { Table, Tag, Select, DatePicker, Typography, Space, Spin } from 'antd'
 import dayjs from 'dayjs'
-import { mockEvents, mockCompanies, MODULES } from '../mock/data'
+import { useCollection } from '../hooks/useCollection'
+import { MODULES } from '../mock/data'
 
 const { Title } = Typography
 const { RangePicker } = DatePicker
 
-export default function Events() {
-  const [filterType, setFilterType] = useState(null)
-  const [filterCompany, setFilterCompany] = useState(null)
-  const [dateRange, setDateRange] = useState(null)
+function toDate(v) { return v?.toDate ? v.toDate() : v ? new Date(v) : null }
 
-  const filtered = mockEvents.filter(e => {
+export default function Events() {
+  const [events, loading] = useCollection('events')
+  const [companies]       = useCollection('companies')
+
+  const [filterType, setFilterType]       = useState(null)
+  const [filterCompany, setFilterCompany] = useState(null)
+  const [dateRange, setDateRange]         = useState(null)
+
+  const companyById = useMemo(() => Object.fromEntries(companies.map(c => [c.id, c])), [companies])
+
+  const rows = useMemo(() => [...events]
+    .sort((a, b) => (toDate(b.createdAt) || 0) - (toDate(a.createdAt) || 0))
+    .map(e => ({ ...e, companyName: e.companyName || companyById[e.companyId]?.name || e.companyId || '—' }))
+  , [events, companyById])
+
+  const filtered = useMemo(() => rows.filter(e => {
     if (filterType !== null && e.allowed !== (filterType === 'allowed')) return false
     if (filterCompany && e.companyId !== filterCompany) return false
     if (dateRange) {
-      const d = dayjs(e.createdAt)
+      const d = dayjs(toDate(e.createdAt))
       if (d.isBefore(dateRange[0], 'day') || d.isAfter(dateRange[1], 'day')) return false
     }
     return true
-  })
+  }), [rows, filterType, filterCompany, dateRange])
 
   const columns = [
     {
       title: 'Fecha / Hora', dataIndex: 'createdAt', key: 'date',
-      render: v => dayjs(v).format('DD/MM/YYYY HH:mm'),
-      sorter: (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
-      defaultSortOrder: 'ascend',
+      render: v => v ? dayjs(toDate(v)).format('DD/MM/YYYY HH:mm') : '—',
     },
     {
       title: 'Resultado', dataIndex: 'allowed', key: 'result',
@@ -37,20 +48,16 @@ export default function Events() {
     { title: 'Empresa', dataIndex: 'companyName', key: 'company' },
     {
       title: 'Meta User ID', dataIndex: 'metaUserId', key: 'user',
-      render: v => <code style={{ fontSize: 12 }}>{v}</code>,
+      render: v => <code style={{ fontSize: 12 }}>{v || '—'}</code>,
     },
     {
       title: 'Módulo', dataIndex: 'moduleId', key: 'module',
-      render: v => {
-        const found = MODULES.find(m => m.id === v)
-        return found ? found.label : v
-      },
+      render: v => MODULES.find(m => m.id === v)?.label || v || '—',
     },
-    {
-      title: 'Motivo de denegación', dataIndex: 'reason', key: 'reason',
-      render: v => v || '—',
-    },
+    { title: 'Motivo de denegación', dataIndex: 'reason', key: 'reason', render: v => v || '—' },
   ]
+
+  if (loading) return <Spin style={{ display: 'block', margin: '80px auto' }} />
 
   return (
     <div>
@@ -59,23 +66,10 @@ export default function Events() {
       </div>
 
       <Space style={{ marginBottom: 16 }} wrap>
-        <Select
-          placeholder="Tipo"
-          allowClear
-          style={{ width: 160 }}
-          onChange={setFilterType}
-          options={[
-            { value: 'allowed', label: '✔ Permitidos' },
-            { value: 'denied', label: '✕ Denegados' },
-          ]}
-        />
-        <Select
-          placeholder="Empresa"
-          allowClear
-          style={{ width: 200 }}
-          onChange={setFilterCompany}
-          options={mockCompanies.map(c => ({ value: c.id, label: c.name }))}
-        />
+        <Select placeholder="Tipo" allowClear style={{ width: 160 }} onChange={setFilterType}
+          options={[{ value: 'allowed', label: '✔ Permitidos' }, { value: 'denied', label: '✕ Denegados' }]} />
+        <Select placeholder="Empresa" allowClear style={{ width: 200 }} onChange={setFilterCompany}
+          options={companies.map(c => ({ value: c.id, label: c.name }))} />
         <RangePicker format="DD/MM/YYYY" onChange={setDateRange} />
       </Space>
 

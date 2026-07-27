@@ -1,8 +1,11 @@
-import { useState } from 'react'
-import { Table, Button, Tag, Input, Modal, Form, Select, Typography, Space, Tooltip, message } from 'antd'
+import { useState, useMemo } from 'react'
+import { Table, Button, Tag, Input, Modal, Form, Select, Typography, Space, Tooltip, message, Spin } from 'antd'
 import { PlusOutlined, EditOutlined, SearchOutlined, HistoryOutlined } from '@ant-design/icons'
-import { mockCompanies, mockContracts, PLANS } from '../mock/data'
+import { collection, doc, addDoc, updateDoc } from 'firebase/firestore'
 import dayjs from 'dayjs'
+import { db } from '../firebase'
+import { useCollection } from '../hooks/useCollection'
+import { PLANS } from '../mock/data'
 
 const { Title, Text } = Typography
 
@@ -10,23 +13,25 @@ const STATUS_OPTIONS = [
   { value: 'active', label: 'Activa' },
   { value: 'paused', label: 'Pausada' },
 ]
-
 const STATUS_COLORS = { active: 'success', paused: 'default' }
 const STATUS_LABELS = { active: 'Activa', paused: 'Pausada' }
 
 export default function Companies() {
-  const [companies, setCompanies] = useState(mockCompanies)
-  const [search, setSearch] = useState('')
-  const [modalOpen, setModalOpen] = useState(false)
+  const [companies, loading] = useCollection('companies')
+  const [contracts]          = useCollection('contracts')
+
+  const [search, setSearch]             = useState('')
+  const [modalOpen, setModalOpen]       = useState(false)
   const [historyCompany, setHistoryCompany] = useState(null)
-  const [editing, setEditing] = useState(null)
+  const [editing, setEditing]           = useState(null)
+  const [saving, setSaving]             = useState(false)
   const [form] = Form.useForm()
 
-  const filtered = companies.filter(c =>
+  const filtered = useMemo(() => companies.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.email.toLowerCase().includes(search.toLowerCase()) ||
+    (c.email || '').toLowerCase().includes(search.toLowerCase()) ||
     (c.contactName || '').toLowerCase().includes(search.toLowerCase())
-  )
+  ), [companies, search])
 
   const openCreate = () => {
     setEditing(null)
@@ -42,18 +47,35 @@ export default function Companies() {
   }
 
   const handleSave = () => {
-    form.validateFields().then(values => {
-      if (editing) {
-        setCompanies(prev => prev.map(c => c.id === editing.id ? { ...c, ...values } : c))
-        message.success('Empresa actualizada')
-      } else {
-        const newCompany = { ...values, id: `c${Date.now()}`, createdAt: new Date().toISOString().slice(0, 10) }
-        setCompanies(prev => [...prev, newCompany])
-        message.success('Empresa creada')
+    form.validateFields().then(async values => {
+      setSaving(true)
+      try {
+        if (editing) {
+          await updateDoc(doc(db, 'companies', editing.id), values)
+          message.success('Empresa actualizada')
+        } else {
+          await addDoc(collection(db, 'companies'), {
+            ...values,
+            createdAt: new Date().toISOString().slice(0, 10),
+          })
+          message.success('Empresa creada')
+        }
+        setModalOpen(false)
+      } catch (err) {
+        console.error(err)
+        message.error('No se pudo guardar')
+      } finally {
+        setSaving(false)
       }
-      setModalOpen(false)
     })
   }
+
+  const historyContracts = useMemo(() => historyCompany
+    ? contracts
+        .filter(c => c.companyId === historyCompany.id)
+        .sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''))
+    : []
+  , [contracts, historyCompany])
 
   const columns = [
     { title: 'Empresa', dataIndex: 'name', key: 'name', sorter: (a, b) => a.name.localeCompare(b.name) },
@@ -69,7 +91,7 @@ export default function Companies() {
     { title: 'Email', dataIndex: 'email', key: 'email' },
     {
       title: 'Estado', dataIndex: 'status', key: 'status',
-      render: s => <Tag color={STATUS_COLORS[s]}>{STATUS_LABELS[s]}</Tag>,
+      render: s => <Tag color={STATUS_COLORS[s] || 'default'}>{STATUS_LABELS[s] || s}</Tag>,
       filters: STATUS_OPTIONS.map(o => ({ text: o.label, value: o.value })),
       onFilter: (value, record) => record.status === value,
     },
@@ -89,32 +111,28 @@ export default function Companies() {
     },
   ]
 
-  const historyContracts = historyCompany
-    ? mockContracts.filter(c => c.companyId === historyCompany.id).sort((a, b) => b.startDate.localeCompare(a.startDate))
-    : []
-
   const historyColumns = [
     {
       title: 'Plan', dataIndex: 'plan', key: 'plan',
-      render: v => {
-        const found = PLANS.find(p => p.value === v)
-        return found ? found.label : v
-      },
+      render: v => PLANS.find(p => p.value === v)?.label || v || '—',
     },
-    { title: 'Usuarios', dataIndex: 'maxUsers', key: 'maxUsers' },
+    { title: 'Usuarios', dataIndex: 'maxUsers', key: 'maxUsers', render: v => v ?? '—' },
     {
       title: 'Período', key: 'period',
-      render: (_, r) => `${dayjs(r.startDate).format('DD/MM/YY')} → ${dayjs(r.endDate).format('DD/MM/YY')}`,
+      render: (_, r) => r.startDate && r.endDate
+        ? `${dayjs(r.startDate).format('DD/MM/YY')} → ${dayjs(r.endDate).format('DD/MM/YY')}`
+        : '—',
     },
     { title: 'Notas', dataIndex: 'notes', key: 'notes', render: v => v || '—' },
   ]
+
+  if (loading) return <Spin style={{ display: 'block', margin: '80px auto' }} />
 
   return (
     <div>
       <div className="page-header">
         <Title level={4} style={{ margin: 0 }}>Empresas</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}
-          style={{ background: '#F65C7C', borderColor: '#F65C7C' }}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
           Nueva empresa
         </Button>
       </div>
@@ -139,14 +157,14 @@ export default function Companies() {
         pagination={{ pageSize: 10, showTotal: (t, r) => `${r[0]}–${r[1]} de ${t}` }}
       />
 
-      {/* Editar / crear empresa */}
+      {/* Modal empresa */}
       <Modal
         title={editing ? `Editar: ${editing.name}` : 'Nueva empresa'}
         open={modalOpen}
         onOk={handleSave}
         onCancel={() => setModalOpen(false)}
         okText={editing ? 'Guardar cambios' : 'Crear empresa'}
-        okButtonProps={{ style: { background: '#F65C7C', borderColor: '#F65C7C' } }}
+        okButtonProps={{ loading: saving }}
         cancelText="Cancelar"
         width={540}
       >
@@ -162,7 +180,8 @@ export default function Companies() {
               <Input placeholder="+54 11 ..." />
             </Form.Item>
           </div>
-          <Form.Item name="email" label="Email de contacto" rules={[{ required: true }, { type: 'email', message: 'Email inválido' }]}>
+          <Form.Item name="email" label="Email de contacto"
+            rules={[{ required: true }, { type: 'email', message: 'Email inválido' }]}>
             <Input />
           </Form.Item>
           <Form.Item name="status" label="Estado" rules={[{ required: true }]}>
@@ -174,7 +193,7 @@ export default function Companies() {
         </Form>
       </Modal>
 
-      {/* Historial comercial */}
+      {/* Modal historial comercial */}
       <Modal
         title={historyCompany ? `Historial — ${historyCompany.name}` : ''}
         open={!!historyCompany}
@@ -188,7 +207,7 @@ export default function Companies() {
           <>
             {historyContracts.length >= 3 && (
               <div style={{ marginBottom: 12, padding: '8px 12px', background: '#FEF3C7', borderRadius: 6, fontSize: 13, color: '#92400E' }}>
-                💡 {historyContracts.length} contratos registrados — candidata a oferta de plan anual.
+                {historyContracts.length} contratos registrados — candidata a oferta de plan anual.
               </div>
             )}
             <Table

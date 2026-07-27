@@ -1,50 +1,65 @@
-import { Table, Tag, Select, Input, Typography, Space, Alert } from 'antd'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import { Table, Tag, Select, Input, Typography, Space, Alert, Spin } from 'antd'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import { mockUserAccess, mockCompanies, mockLicenses } from '../mock/data'
+import { useCollection } from '../hooks/useCollection'
 
 dayjs.extend(relativeTime)
-
 const { Title, Text } = Typography
 
 const OFFLINE_THRESHOLD_HOURS = 48
+const PLATFORM_LABELS = { quest2: 'Meta Quest 2', quest3: 'Meta Quest 3', questpro: 'Meta Quest Pro' }
 
-const PLATFORM_LABELS = {
-  quest2: 'Meta Quest 2',
-  quest3: 'Meta Quest 3',
-  questpro: 'Meta Quest Pro',
-}
+function toDate(v) { return v?.toDate ? v.toDate() : v ? new Date(v) : null }
 
 export default function Devices() {
+  const [userAccess, loading] = useCollection('userAccess')
+  const [companies]           = useCollection('companies')
+  const [licenses]            = useCollection('licenses')
+
   const [filterCompany, setFilterCompany] = useState(null)
-  const [search, setSearch] = useState('')
+  const [search, setSearch]               = useState('')
 
-  const filtered = mockUserAccess.filter(d => {
+  const companyById = useMemo(() => Object.fromEntries(companies.map(c => [c.id, c])), [companies])
+  const licenseById = useMemo(() => Object.fromEntries(licenses.map(l => [l.id, l])),   [licenses])
+
+  const rows = useMemo(() => userAccess.map(u => ({
+    ...u,
+    companyName: u.companyName || companyById[u.companyId]?.name || '—',
+  })), [userAccess, companyById])
+
+  const filtered = useMemo(() => rows.filter(d => {
     if (filterCompany && d.companyId !== filterCompany) return false
-    if (search && !d.metaUserId.toLowerCase().includes(search.toLowerCase())) return false
+    if (search) {
+      const q = search.toLowerCase()
+      if (!d.metaUserId.toLowerCase().includes(q) &&
+          !(d.name  || '').toLowerCase().includes(q) &&
+          !(d.email || '').toLowerCase().includes(q)) return false
+    }
     return true
-  })
+  }), [rows, filterCompany, search])
 
-  const offlineUsers = mockUserAccess.filter(d => {
-    const diffHours = (Date.now() - new Date(d.lastSeenAt).getTime()) / (1000 * 60 * 60)
-    return diffHours > OFFLINE_THRESHOLD_HOURS
-  })
+  const offlineCount = useMemo(() => rows.filter(d => {
+    const last = toDate(d.lastSeenAt)
+    return last && (Date.now() - last.getTime()) / 3600000 > OFFLINE_THRESHOLD_HOURS
+  }).length, [rows])
 
   const expandedRowRender = (record) => {
-    const license = mockLicenses.find(l => l.id === record.licenseId)
+    const license = licenseById[record.licenseId]
     return (
-      <Space size={40} wrap style={{ padding: '4px 0 8px' }}>
+      <Space size={32} wrap style={{ padding: '4px 0 8px' }}>
+        {record.name  && <div><Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Nombre</Text><Text>{record.name}</Text></div>}
+        {record.email && <div><Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Email</Text><Text>{record.email}</Text></div>}
         <div>
           <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Licencia</Text>
           <code style={{ fontSize: 12 }}>{license?.licenseCode || record.licenseId}</code>
         </div>
         <div>
-          <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Modelo de visor</Text>
+          <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Modelo</Text>
           <Text>{record.deviceModel || <span style={{ color: '#bbb' }}>—</span>}</Text>
         </div>
         <div>
-          <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Sistema operativo</Text>
+          <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>SO</Text>
           <Text>{record.osVersion || <span style={{ color: '#bbb' }}>—</span>}</Text>
         </div>
         <div>
@@ -53,8 +68,14 @@ export default function Devices() {
         </div>
         <div>
           <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Primera conexión</Text>
-          <Text>{dayjs(record.firstSeenAt).format('DD/MM/YYYY HH:mm')}</Text>
+          <Text>{record.firstSeenAt ? dayjs(toDate(record.firstSeenAt)).format('DD/MM/YYYY HH:mm') : '—'}</Text>
         </div>
+        {record.activationCode && (
+          <div>
+            <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Código activación</Text>
+            <code style={{ fontSize: 12 }}>{record.activationCode}</code>
+          </div>
+        )}
       </Space>
     )
   }
@@ -64,19 +85,32 @@ export default function Devices() {
       title: 'Meta User ID', dataIndex: 'metaUserId', key: 'id',
       render: v => <code style={{ fontSize: 12 }}>{v}</code>,
     },
+    {
+      title: 'Nombre / Email', key: 'nameEmail',
+      render: (_, r) => r.name || r.email ? (
+        <div>
+          {r.name  && <div style={{ fontWeight: 500 }}>{r.name}</div>}
+          {r.email && <Text type="secondary" style={{ fontSize: 12 }}>{r.email}</Text>}
+        </div>
+      ) : <span style={{ color: '#bbb' }}>—</span>,
+    },
     { title: 'Empresa', dataIndex: 'companyName', key: 'company' },
     {
-      title: 'Versión app', dataIndex: 'appVersion', key: 'version',
-      render: v => v || '—',
+      title: 'Estado', dataIndex: 'status', key: 'status',
+      render: s => s === 'blocked'
+        ? <Tag color="error">Bloqueado</Tag>
+        : <Tag color="success">Activo</Tag>,
     },
+    { title: 'Versión', dataIndex: 'appVersion', key: 'version', render: v => v || '—' },
     {
       title: 'Última conexión', dataIndex: 'lastSeenAt', key: 'last',
       render: v => {
-        const diffHours = (Date.now() - new Date(v).getTime()) / (1000 * 60 * 60)
-        const isOffline = diffHours > OFFLINE_THRESHOLD_HOURS
+        if (!v) return '—'
+        const last = toDate(v)
+        const isOffline = (Date.now() - last.getTime()) / 3600000 > OFFLINE_THRESHOLD_HOURS
         return (
           <span>
-            {dayjs(v).fromNow()}
+            {dayjs(last).fromNow()}
             {isOffline && <Tag color="warning" style={{ marginLeft: 8 }}>Sin conexión &gt;{OFFLINE_THRESHOLD_HOURS}hs</Tag>}
           </span>
         )
@@ -84,37 +118,26 @@ export default function Devices() {
     },
   ]
 
+  if (loading) return <Spin style={{ display: 'block', margin: '80px auto' }} />
+
   return (
     <div>
       <div className="page-header">
         <Title level={4} style={{ margin: 0 }}>Accesos</Title>
       </div>
 
-      {offlineUsers.length > 0 && (
-        <Alert
-          type="warning"
-          style={{ marginBottom: 16 }}
-          message={`${offlineUsers.length} usuario(s) sin conexión hace más de ${OFFLINE_THRESHOLD_HOURS} horas`}
-          description="Pueden estar corriendo en modo offline. Si su grace period venció, el próximo arranque será denegado."
-          showIcon
+      {offlineCount > 0 && (
+        <Alert type="warning" style={{ marginBottom: 16 }} showIcon
+          message={`${offlineCount} usuario(s) sin conexión hace más de ${OFFLINE_THRESHOLD_HOURS} horas`}
+          description="Pueden estar en modo offline. Si su grace period venció, el próximo arranque será denegado."
         />
       )}
 
       <Space style={{ marginBottom: 16 }} wrap>
-        <Select
-          placeholder="Empresa"
-          allowClear
-          style={{ width: 200 }}
-          onChange={setFilterCompany}
-          options={mockCompanies.map(c => ({ value: c.id, label: c.name }))}
-        />
-        <Input
-          placeholder="Buscar por Meta User ID..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{ width: 260 }}
-          allowClear
-        />
+        <Select placeholder="Empresa" allowClear style={{ width: 200 }} onChange={setFilterCompany}
+          options={companies.map(c => ({ value: c.id, label: c.name }))} />
+        <Input placeholder="Buscar por Meta User ID, nombre o email..."
+          value={search} onChange={e => setSearch(e.target.value)} style={{ width: 300 }} allowClear />
       </Space>
 
       <Table
@@ -124,11 +147,7 @@ export default function Devices() {
         size="middle"
         scroll={{ x: 'max-content' }}
         pagination={{ pageSize: 10, showTotal: (t, r) => `${r[0]}–${r[1]} de ${t}` }}
-        expandable={{
-          expandedRowRender,
-          rowExpandable: () => true,
-          expandRowByClick: true,
-        }}
+        expandable={{ expandedRowRender, rowExpandable: () => true, expandRowByClick: true }}
       />
     </div>
   )
