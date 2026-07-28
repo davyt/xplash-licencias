@@ -39,6 +39,7 @@ export default function Devices() {
     if (search) {
       const q = search.toLowerCase()
       if (!d.metaUserId.toLowerCase().includes(q) &&
+          !(d.metaUsername || '').toLowerCase().includes(q) &&
           !(d.name  || '').toLowerCase().includes(q) &&
           !(d.email || '').toLowerCase().includes(q)) return false
     }
@@ -68,6 +69,7 @@ export default function Devices() {
     const license = licenseById[record.licenseId]
     return (
       <Space size={32} wrap style={{ padding: '4px 0 8px' }}>
+        {record.metaUsername && <div><Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Meta username</Text><Text>{record.metaUsername}</Text></div>}
         {record.name  && <div><Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Nombre</Text><Text>{record.name}</Text></div>}
         {record.email && <div><Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Email</Text><Text>{record.email}</Text></div>}
         <div>
@@ -102,8 +104,17 @@ export default function Devices() {
 
   const columns = [
     {
-      title: 'Meta User ID', dataIndex: 'metaUserId', key: 'id',
-      render: v => <code style={{ fontSize: 12 }}>{v}</code>,
+      title: 'Usuario', key: 'user',
+      render: (_, r) => (
+        <div>
+          {r.metaUsername
+            ? <div style={{ fontWeight: 500 }}>{r.metaUsername}</div>
+            : r.name
+              ? <div style={{ fontWeight: 500 }}>{r.name}</div>
+              : null}
+          <code style={{ fontSize: 11, color: '#888' }}>{r.metaUserId}</code>
+        </div>
+      ),
     },
     {
       title: 'Nombre / Email', key: 'nameEmail',
@@ -183,7 +194,7 @@ export default function Devices() {
       <Space style={{ marginBottom: 16 }} wrap>
         <Select placeholder="Empresa" allowClear style={{ width: 200 }} onChange={setFilterCompany}
           options={companies.map(c => ({ value: c.id, label: c.name }))} />
-        <Input placeholder="Buscar por Meta User ID, nombre o email..."
+        <Input placeholder="Buscar por username, Meta User ID, nombre o email..."
           value={search} onChange={e => setSearch(e.target.value)} style={{ width: 300 }} allowClear />
       </Space>
 

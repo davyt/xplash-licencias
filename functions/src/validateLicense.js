@@ -44,7 +44,7 @@ const validateLicense = onRequest({ cors: false, region: 'southamerica-east1' },
     return res.status(429).json({ allowed: false, reason: 'Demasiadas solicitudes. Intentá más tarde.' })
   }
 
-  const { licenseCode, metaUserId, moduleId, appVersion, deviceModel, osVersion, platform } = req.body
+  const { licenseCode, metaUserId, moduleId, appVersion, deviceModel, osVersion, platform, metaUsername } = req.body
 
   if (!licenseCode || !metaUserId || !moduleId) {
     return res.status(400).json({ allowed: false, reason: 'Faltan parámetros requeridos: licenseCode, metaUserId, moduleId' })
@@ -131,7 +131,7 @@ const validateLicense = onRequest({ cors: false, region: 'southamerica-east1' },
 
     await registerOrUpdateUserAccess({
       metaUserId, licenseId: licenseDoc.id, companyId: license.companyId,
-      appVersion, deviceModel, osVersion, platform,
+      appVersion, deviceModel, osVersion, platform, metaUsername,
     })
 
     await logEvent({ licenseCode, metaUserId, moduleId, appVersion, allowed: true, reason: null, licenseId: licenseDoc.id, companyId: license.companyId })
@@ -148,7 +148,7 @@ const validateLicense = onRequest({ cors: false, region: 'southamerica-east1' },
   }
 })
 
-async function registerOrUpdateUserAccess({ metaUserId, licenseId, companyId, appVersion, deviceModel, osVersion, platform }) {
+async function registerOrUpdateUserAccess({ metaUserId, licenseId, companyId, appVersion, deviceModel, osVersion, platform, metaUsername }) {
   const ref = db.collection('userAccess').doc(`${licenseId}_${metaUserId}`)
   const snap = await ref.get()
 
@@ -158,10 +158,12 @@ async function registerOrUpdateUserAccess({ metaUserId, licenseId, companyId, ap
     companyId,
     appVersion: appVersion || null,
     lastSeenAt: new Date(),
-    // Only write device info fields if provided by the client
-    ...(deviceModel !== undefined && { deviceModel }),
-    ...(osVersion  !== undefined && { osVersion }),
-    ...(platform   !== undefined && { platform }),
+    // Only write optional fields if provided by the client
+    ...(deviceModel  !== undefined && { deviceModel }),
+    ...(osVersion    !== undefined && { osVersion }),
+    ...(platform     !== undefined && { platform }),
+    // metaUsername: readable label from Meta Horizon, updated on every validation
+    ...(metaUsername ? { metaUsername } : {}),
   }
 
   if (!snap.exists) {
