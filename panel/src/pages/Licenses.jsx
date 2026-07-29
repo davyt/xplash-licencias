@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react'
 import { Table, Button, Tag, Input, Select, Modal, Form, Checkbox, InputNumber, DatePicker,
-         Typography, Space, Tooltip, message, Popconfirm, Radio, Alert, Switch, Spin } from 'antd'
-import { PlusOutlined, EditOutlined, CopyOutlined, StopOutlined, SyncOutlined, InfoCircleOutlined, KeyOutlined, CheckCircleOutlined } from '@ant-design/icons'
+         Typography, Space, Tooltip, message, Popconfirm, Radio, Alert, Spin } from 'antd'
+import { PlusOutlined, EditOutlined, CopyOutlined, StopOutlined, SyncOutlined, InfoCircleOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import { collection, doc, addDoc, updateDoc, setDoc } from 'firebase/firestore'
+import { collection, doc, addDoc, updateDoc } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useCollection } from '../hooks/useCollection'
 import { useRole } from '../hooks/useRole'
@@ -13,17 +13,6 @@ const { Title } = Typography
 
 function toDate(v) { return v?.toDate ? v.toDate() : v ? new Date(v) : null }
 
-const CODE_STATUS = {
-  pending:   { label: 'Pendiente',  color: 'default' },
-  activated: { label: 'Activado',   color: 'success' },
-  blocked:   { label: 'Bloqueado',  color: 'error'   },
-}
-
-function genActivationCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
-}
-
 function genCode(companyId, companyById) {
   const name = companyById[companyId]?.name || 'XPL'
   const slug  = name.toUpperCase().slice(0, 6).replace(/\s+/g, '')
@@ -32,10 +21,9 @@ function genCode(companyId, companyById) {
 
 export default function Licenses() {
   const role = useRole()
-  const [licenses,        loadingL] = useCollection('licenses')
-  const [companies,       loadingC] = useCollection('companies')
-  const [userAccess,      loadingU] = useCollection('userAccess')
-  const [activationCodes]           = useCollection('activationCodes')
+  const [licenses,   loadingL] = useCollection('licenses')
+  const [companies,  loadingC] = useCollection('companies')
+  const [userAccess, loadingU] = useCollection('userAccess')
 
   const [search, setSearch]               = useState('')
   const [filterStatus, setFilterStatus]   = useState(null)
@@ -44,10 +32,6 @@ export default function Licenses() {
   const [editing, setEditing]             = useState(null)
   const [saving, setSaving]               = useState(false)
   const [form] = Form.useForm()
-
-  const [codesLicense, setCodesLicense] = useState(null)
-  const [addingCode, setAddingCode]     = useState(false)
-  const [codeForm] = Form.useForm()
 
   const [editExpiry, setEditExpiry]               = useState(null)
   const [editExpiryChanged, setEditExpiryChanged] = useState(false)
@@ -79,49 +63,6 @@ export default function Licenses() {
         !(l.companyName || '').toLowerCase().includes(search.toLowerCase())) return false
     return true
   }), [licensesWithNames, filterStatus, filterCompany, search])
-
-  const codesOfLicense = useMemo(
-    () => activationCodes.filter(c => c.licenseId === codesLicense?.id),
-    [activationCodes, codesLicense]
-  )
-
-  const handleAddCode = () => {
-    codeForm.validateFields().then(async values => {
-      setAddingCode(true)
-      try {
-        const code = genActivationCode()
-        await setDoc(doc(db, 'activationCodes', code), {
-          licenseId:   codesLicense.id,
-          licenseCode: codesLicense.licenseCode,
-          companyId:   codesLicense.companyId,
-          name:        values.name,
-          email:       values.email,
-          status:      'pending',
-          createdAt:   new Date(),
-        })
-        codeForm.resetFields()
-        message.success(`Código creado: ${code}`)
-      } catch (err) {
-        console.error(err)
-        message.error('No se pudo crear el código')
-      } finally {
-        setAddingCode(false)
-      }
-    })
-  }
-
-  const handleToggleCode = async (record) => {
-    const newStatus = record.status === 'blocked'
-      ? (record.metaUserId ? 'activated' : 'pending')
-      : 'blocked'
-    try {
-      await updateDoc(doc(db, 'activationCodes', record.id), { status: newStatus })
-      message.success(newStatus === 'blocked' ? 'Código bloqueado' : 'Código desbloqueado')
-    } catch (err) {
-      console.error(err)
-      message.error('No se pudo actualizar el código')
-    }
-  }
 
   const getRenewBase = (lic) => {
     const exp = toDate(lic.expiresAt)
@@ -167,7 +108,7 @@ export default function Licenses() {
   const openCreate = () => {
     setEditing(null); setEditExpiry(null); setEditExpiryChanged(false)
     form.resetFields()
-    form.setFieldsValue({ status: 'draft', offlineGraceHours: 48, maxUsers: 1, enabledModules: [], requiresActivation: false })
+    form.setFieldsValue({ status: 'draft', offlineGraceHours: 48, maxUsers: 1, enabledModules: [] })
     setModalOpen(true)
   }
 
@@ -211,7 +152,6 @@ export default function Licenses() {
           startDate:          values.startDate?.format('YYYY-MM-DD') || null,
           expiresAt:          editing ? editExpiry : (values.expiresAt?.format('YYYY-MM-DD') || null),
           enabledModules:     values.enabledModules || [],
-          requiresActivation: values.requiresActivation || false,
           notes:              values.notes || null,
         }
         if (editing) {
@@ -253,10 +193,6 @@ export default function Licenses() {
         return <span style={{ color: atMax ? '#ff4d4f' : nearMax ? '#faad14' : undefined, fontVariantNumeric: 'tabular-nums' }}>{reg}/{r.maxUsers}</span>
       },
     },
-    {
-      title: 'Activación', key: 'activation',
-      render: (_, r) => r.requiresActivation ? <Tag color="blue">Por código</Tag> : <Tag color="default">Libre</Tag>,
-    },
     { title: 'Grace', dataIndex: 'offlineGraceHours', key: 'grace', render: v => v != null ? `${v}h` : '—' },
     {
       title: 'Vence', dataIndex: 'expiresAt', key: 'expires',
@@ -271,11 +207,6 @@ export default function Licenses() {
       title: '', key: 'actions', width: 150,
       render: (_, record) => (
         <Space>
-          {role === 'admin' && record.requiresActivation && (
-            <Tooltip title="Códigos de activación">
-              <Button icon={<KeyOutlined />} size="small" onClick={() => { codeForm.resetFields(); setCodesLicense(record) }} style={{ color: '#7C3AED', borderColor: '#7C3AED' }} />
-            </Tooltip>
-          )}
           <Tooltip title="Copiar código"><Button icon={<CopyOutlined />} size="small" onClick={() => copyCode(record.licenseCode)} /></Tooltip>
           <Tooltip title="Editar"><Button icon={<EditOutlined />} size="small" onClick={() => openEdit(record)} /></Tooltip>
           {record.status !== 'draft' && (
@@ -367,84 +298,6 @@ export default function Licenses() {
         })()}
       </Modal>
 
-      {/* Modal códigos de activación */}
-      <Modal
-        title={codesLicense ? `Códigos de activación — ${codesLicense.licenseCode}` : ''}
-        open={!!codesLicense}
-        onCancel={() => setCodesLicense(null)}
-        footer={null}
-        width={760}
-      >
-        <Table
-          dataSource={codesOfLicense}
-          rowKey="id"
-          size="small"
-          pagination={false}
-          style={{ marginBottom: 20 }}
-          locale={{ emptyText: 'Sin códigos todavía. Creá el primero abajo.' }}
-          columns={[
-            {
-              title: 'Código', dataIndex: 'id', key: 'code',
-              render: v => (
-                <Space>
-                  <code style={{ fontSize: 13, letterSpacing: 2, fontWeight: 700 }}>{v}</code>
-                  <Button type="text" icon={<CopyOutlined />} size="small"
-                    onClick={() => { navigator.clipboard.writeText(v); message.success(`Código copiado: ${v}`) }} />
-                </Space>
-              ),
-            },
-            { title: 'Nombre', dataIndex: 'name',  key: 'name',  render: v => v || '—' },
-            { title: 'Email',  dataIndex: 'email', key: 'email', render: v => v || '—' },
-            {
-              title: 'Estado', dataIndex: 'status', key: 'status',
-              render: s => { const cfg = CODE_STATUS[s] || { label: s, color: 'default' }; return <Tag color={cfg.color}>{cfg.label}</Tag> },
-            },
-            {
-              title: 'Meta User ID', dataIndex: 'metaUserId', key: 'meta',
-              render: v => v ? <code style={{ fontSize: 11 }}>{v}</code> : <span style={{ color: '#bbb' }}>—</span>,
-            },
-            {
-              title: '', key: 'codeActions', width: 120,
-              render: (_, record) => {
-                const isBlocked = record.status === 'blocked'
-                return (
-                  <Popconfirm
-                    title={isBlocked ? '¿Desbloquear este código?' : '¿Bloquear este código?'}
-                    description={isBlocked ? 'El usuario podrá activar con este código.' : 'El usuario no podrá usar este código.'}
-                    onConfirm={() => handleToggleCode(record)}
-                    okText={isBlocked ? 'Desbloquear' : 'Bloquear'}
-                    cancelText="Cancelar"
-                    okButtonProps={{ danger: !isBlocked }}
-                  >
-                    <Button size="small" danger={!isBlocked}
-                      icon={isBlocked ? <CheckCircleOutlined /> : <StopOutlined />}>
-                      {isBlocked ? 'Desbloquear' : 'Bloquear'}
-                    </Button>
-                  </Popconfirm>
-                )
-              },
-            },
-          ]}
-        />
-
-        <div style={{ borderTop: '1px solid var(--ant-color-border, #d9d9d9)', paddingTop: 16 }}>
-          <div style={{ fontWeight: 600, marginBottom: 10, fontSize: 13 }}>Nuevo código</div>
-          <Form form={codeForm} layout="inline" onFinish={handleAddCode}>
-            <Form.Item name="name" rules={[{ required: true, message: 'Nombre requerido' }]}>
-              <Input placeholder="Nombre y apellido" style={{ width: 180 }} />
-            </Form.Item>
-            <Form.Item name="email" rules={[{ required: true, message: 'Email requerido' }, { type: 'email', message: 'Email inválido' }]}>
-              <Input placeholder="Email" style={{ width: 200 }} />
-            </Form.Item>
-            <Form.Item>
-              <Button type="primary" htmlType="submit" icon={<PlusOutlined />} loading={addingCode}>
-                Generar código
-              </Button>
-            </Form.Item>
-          </Form>
-        </div>
-      </Modal>
-
       {/* Modal crear/editar */}
       <Modal title={editing ? `Editar: ${editing.licenseCode}` : 'Nueva licencia'}
         open={modalOpen} onOk={handleSave} onCancel={() => setModalOpen(false)}
@@ -489,10 +342,6 @@ export default function Licenses() {
               </Form.Item>
             )}
           </div>
-          <Form.Item name="requiresActivation" label="Activación por código" valuePropName="checked"
-            help="Si está activo, el visor necesita un código personal en el primer uso.">
-            <Switch checkedChildren="Requerida" unCheckedChildren="No requerida" />
-          </Form.Item>
           <Form.Item name="enabledModules" label="Módulos habilitados">
             <Checkbox.Group options={MODULES.map(m => ({ label: m.label, value: m.id }))}
               style={{ display: 'flex', flexDirection: 'column', gap: 6 }} />
