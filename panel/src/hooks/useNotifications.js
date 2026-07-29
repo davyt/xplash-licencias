@@ -1,25 +1,37 @@
 import { useMemo } from 'react'
+import { where, orderBy, limit } from 'firebase/firestore'
 import { useCollection } from './useCollection'
 
 const WARNING_DAYS = 7
 const MS_PER_DAY   = 1000 * 60 * 60 * 24
+const WINDOW_48H   = 48 * 60 * 60 * 1000
 
 function toDate(v) {
   return v?.toDate ? v.toDate() : v ? new Date(v) : null
 }
 
+function deniedSeverity(reason = '') {
+  if (reason.includes('Límite') || reason.includes('no encontrada') || reason.includes('vencida')) return 'warning'
+  return 'info'
+}
+
 export function useNotifications(role = 'admin') {
-  const [licenses]   = useCollection('licenses')
-  const [companies]  = useCollection('companies')
-  const [userAccess] = useCollection('userAccess')
+  const [licenses]     = useCollection('licenses')
+  const [companies]    = useCollection('companies')
+  const [recentEvents] = useCollection('events', [
+    where('createdAt', '>=', new Date(Date.now() - WINDOW_48H)),
+    orderBy('createdAt', 'desc'),
+    limit(200),
+  ])
 
   return useMemo(() => {
-    const today = new Date()
-    const items = []
+    const today   = new Date()
+    const dateStr = today.toISOString().slice(0, 10)
+    const items   = []
 
+    // — Licencias vencidas o próximas a vencer
     for (const lic of licenses) {
       if (!lic.expiresAt || lic.status === 'draft') continue
-
       const expires  = toDate(lic.expiresAt)
       const diffDays = Math.ceil((expires - today) / MS_PER_DAY)
 
@@ -45,23 +57,9 @@ export function useNotifications(role = 'admin') {
           link:     '/licencias',
         })
       }
-
-      if (!lic.requiresActivation) {
-        const registered = userAccess.filter(ua => ua.licenseId === lic.id).length
-        if (lic.maxUsers > 0 && registered >= lic.maxUsers) {
-          items.push({
-            id:       `limit_${lic.id}`,
-            type:     'user_limit',
-            severity: 'warning',
-            title:    'Límite de usuarios alcanzado',
-            desc:     lic.licenseCode,
-            detail:   `${registered}/${lic.maxUsers} usuario${lic.maxUsers !== 1 ? 's' : ''}`,
-            link:     '/accesos',
-          })
-        }
-      }
     }
 
+    // — Empresas suspendidas (solo admin)
     if (role === 'admin') {
       for (const co of companies) {
         if (co.status === 'paused') {
@@ -78,7 +76,32 @@ export function useNotifications(role = 'admin') {
       }
     }
 
+    // — Accesos denegados en las últimas 48h, agrupados por licenseCode
+    // ID incluye fecha para que se renueve al día siguiente si se descarta
+    const deniedGroups = {}
+    for (const ev of recentEvents) {
+      if (ev.allowed !== false) continue
+      const key = ev.licenseCode || 'desconocido'
+      if (!deniedGroups[key]) deniedGroups[key] = { licenseCode: ev.licenseCode, reasons: {} }
+      const r = ev.reason || 'Acceso denegado'
+      deniedGroups[key].reasons[r] = (deniedGroups[key].reasons[r] || 0) + 1
+    }
+
+    for (const [key, data] of Object.entries(deniedGroups)) {
+      const total     = Object.values(data.reasons).reduce((s, n) => s + n, 0)
+      const [topReason] = Object.entries(data.reasons).sort((a, b) => b[1] - a[1])[0]
+      items.push({
+        id:       `denied_${key}_${dateStr}`,
+        type:     'access_denied',
+        severity: deniedSeverity(topReason),
+        title:    'Acceso denegado',
+        desc:     data.licenseCode || key,
+        detail:   `${total} intento${total !== 1 ? 's' : ''} en 48h · ${topReason}`,
+        link:     '/eventos',
+      })
+    }
+
     const order = { critical: 0, warning: 1, info: 2 }
     return items.sort((a, b) => order[a.severity] - order[b.severity])
-  }, [licenses, companies, userAccess, role])
+  }, [licenses, companies, recentEvents, role])
 }
