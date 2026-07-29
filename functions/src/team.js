@@ -13,11 +13,11 @@ const listTeamUsers = onCall({ region: REGION }, async (req) => {
   const users = result.users
     .filter(u => u.customClaims?.role)
     .map(u => ({
-      uid:           u.uid,
-      email:         u.email,
-      displayName:   u.displayName || null,
-      emailVerified: u.emailVerified,
-      role:          u.customClaims?.role || null,
+      uid:          u.uid,
+      email:        u.email,
+      displayName:  u.displayName || null,
+      lastSignInAt: u.metadata.lastSignInTime || null,
+      role:         u.customClaims?.role || null,
     }))
 
   return { users }

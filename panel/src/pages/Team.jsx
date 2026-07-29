@@ -150,7 +150,7 @@ export default function Team() {
     },
     {
       title: 'Estado', key: 'status',
-      render: (_, r) => r.emailVerified
+      render: (_, r) => r.lastSignInAt
         ? <Tag color="success">Activo</Tag>
         : <Tag color="warning">Pendiente</Tag>,
     },
