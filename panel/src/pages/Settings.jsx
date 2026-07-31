@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Card, Table, Button, Modal, Form, Input, InputNumber, Switch, Typography, Space, Spin, message } from 'antd'
+import { Card, Table, Button, Modal, Form, Input, InputNumber, Switch, Typography, Space, Spin, message, Tag } from 'antd'
 import { PlusOutlined, EditOutlined } from '@ant-design/icons'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc, collection, addDoc, updateDoc } from 'firebase/firestore'
 import { db } from '../firebase'
-import { MODULES as DEFAULT_MODULES, PLANS as DEFAULT_PLANS, DEFAULT_GRACE_HOURS } from '../mock/data'
+import { useCollection } from '../hooks/useCollection'
+import { MODULES as MOCK_MODULES, PLANS as DEFAULT_PLANS, DEFAULT_GRACE_HOURS } from '../mock/data'
 
 const { Title } = Typography
 
@@ -14,18 +15,21 @@ async function persistSettings(patch) {
 }
 
 export default function Settings() {
-  const [loading, setLoading]       = useState(true)
-  const [modules, setModules]       = useState(DEFAULT_MODULES.map(m => ({ ...m, enabled: true })))
-  const [plans, setPlans]           = useState(DEFAULT_PLANS)
-  const [defaultGrace, setDefaultGrace] = useState(DEFAULT_GRACE_HOURS)
-  const [graceChanged, setGraceChanged] = useState(false)
-  const [graceSaving, setGraceSaving]   = useState(false)
+  const [loadingSettings, setLoadingSettings] = useState(true)
+  const [plans, setPlans]                     = useState(DEFAULT_PLANS)
+  const [defaultGrace, setDefaultGrace]       = useState(DEFAULT_GRACE_HOURS)
+  const [graceChanged, setGraceChanged]       = useState(false)
+  const [graceSaving, setGraceSaving]         = useState(false)
 
-  const [moduleModal, setModuleModal]   = useState(false)
+  // Módulos vienen de la colección Firestore 'modules', no de settings/global
+  const [modules, loadingModules] = useCollection('modules')
+  const allModules = modules.length ? modules : MOCK_MODULES
+
+  const [moduleModal, setModuleModal]     = useState(false)
   const [editingModule, setEditingModule] = useState(null)
   const [moduleForm] = Form.useForm()
 
-  const [planModal, setPlanModal]   = useState(false)
+  const [planModal, setPlanModal]     = useState(false)
   const [editingPlan, setEditingPlan] = useState(null)
   const [planForm] = Form.useForm()
 
@@ -34,45 +38,47 @@ export default function Settings() {
       .then(snap => {
         if (snap.exists()) {
           const data = snap.data()
-          if (data.modules?.length)                    setModules(data.modules)
-          if (data.plans?.length)                      setPlans(data.plans)
+          if (data.plans?.length)                         setPlans(data.plans)
           if (typeof data.defaultGraceHours === 'number') setDefaultGrace(data.defaultGraceHours)
         }
       })
       .catch(err => console.error('Error cargando configuración:', err))
-      .finally(() => setLoading(false))
+      .finally(() => setLoadingSettings(false))
   }, [])
 
-  // — Módulos —
+  // — Módulos (Firestore collection 'modules') —
   const openModuleCreate = () => {
     setEditingModule(null)
     moduleForm.resetFields()
-    moduleForm.setFieldsValue({ enabled: true })
+    moduleForm.setFieldsValue({ status: 'active' })
     setModuleModal(true)
   }
 
   const openModuleEdit = (record) => {
     setEditingModule(record)
-    moduleForm.setFieldsValue(record)
+    moduleForm.setFieldsValue({ name: record.name || record.label, status: record.status ?? 'active' })
     setModuleModal(true)
   }
 
   const handleModuleSave = () => {
     moduleForm.validateFields().then(async values => {
-      let newModules
-      if (editingModule) {
-        newModules = modules.map(m => m.id === editingModule.id ? { ...m, ...values } : m)
-      } else {
-        if (modules.find(m => m.id === values.id)) {
-          moduleForm.setFields([{ name: 'id', errors: ['Ya existe un módulo con ese ID'] }])
-          return
-        }
-        newModules = [...modules, { ...values }]
-      }
       try {
-        await persistSettings({ modules: newModules })
-        setModules(newModules)
-        message.success(editingModule ? 'Módulo actualizado' : 'Módulo creado')
+        if (editingModule) {
+          await updateDoc(doc(db, 'modules', editingModule.id), {
+            name:   values.name,
+            status: values.status,
+          })
+          message.success('Módulo actualizado')
+        } else {
+          const licenseCode = values.licenseCode.toUpperCase().trim()
+          await setDoc(doc(collection(db, 'modules'), licenseCode), {
+            licenseCode,
+            name:      values.name,
+            status:    values.status,
+            createdAt: new Date(),
+          })
+          message.success('Módulo creado')
+        }
         setModuleModal(false)
       } catch (err) {
         console.error(err)
@@ -81,16 +87,7 @@ export default function Settings() {
     })
   }
 
-  const toggleModule = async (id, enabled) => {
-    const newModules = modules.map(m => m.id === id ? { ...m, enabled } : m)
-    setModules(newModules)
-    persistSettings({ modules: newModules }).catch(() => {
-      setModules(modules)
-      message.error('No se pudo guardar')
-    })
-  }
-
-  // — Planes —
+  // — Planes (settings/global) —
   const openPlanCreate = () => {
     setEditingPlan(null)
     planForm.resetFields()
@@ -131,7 +128,6 @@ export default function Settings() {
       message.success('Configuración guardada')
       setGraceChanged(false)
     } catch (err) {
-      console.error(err)
       message.error('No se pudo guardar')
     } finally {
       setGraceSaving(false)
@@ -140,11 +136,16 @@ export default function Settings() {
 
   const moduleColumns = [
     {
-      title: 'Activo', dataIndex: 'enabled', key: 'enabled', width: 70,
-      render: (v, r) => <Switch size="small" checked={v} onChange={checked => toggleModule(r.id, checked)} />,
+      title: 'LicenseCode', key: 'licenseCode',
+      render: (_, r) => <code style={{ fontSize: 12 }}>{r.licenseCode || r.id}</code>,
     },
-    { title: 'Nombre', dataIndex: 'label', key: 'label' },
-    { title: 'ID', dataIndex: 'id', key: 'id', render: v => <code style={{ fontSize: 12 }}>{v}</code> },
+    { title: 'Nombre', key: 'name', render: (_, r) => r.name || r.label },
+    {
+      title: 'Estado', dataIndex: 'status', key: 'status',
+      render: v => v === 'active'
+        ? <Tag color="success">Activo</Tag>
+        : <Tag color="default">Inactivo</Tag>,
+    },
     {
       title: '', key: 'actions', width: 50,
       render: (_, r) => <Button icon={<EditOutlined />} size="small" onClick={() => openModuleEdit(r)} />,
@@ -157,10 +158,6 @@ export default function Settings() {
       title: 'Duración', dataIndex: 'durationMonths', key: 'duration',
       render: v => v ? `${v} mes${v > 1 ? 'es' : ''}` : '—',
     },
-    {
-      title: 'Usuarios por defecto', dataIndex: 'defaultMaxUsers', key: 'users',
-      render: v => v ?? '—',
-    },
     { title: 'ID', dataIndex: 'value', key: 'value', render: v => <code style={{ fontSize: 11 }}>{v}</code> },
     {
       title: '', key: 'actions', width: 50,
@@ -168,7 +165,7 @@ export default function Settings() {
     },
   ]
 
-  if (loading) return <Spin style={{ display: 'block', margin: '80px auto' }} />
+  if (loadingSettings) return <Spin style={{ display: 'block', margin: '80px auto' }} />
 
   return (
     <div>
@@ -179,25 +176,24 @@ export default function Settings() {
       <Space direction="vertical" size={20} style={{ width: '100%' }}>
 
         <Card
-          title="Módulos de entrenamiento"
+          title="Módulos / Apps"
           size="small"
-          extra={
-            <Button type="primary" size="small" icon={<PlusOutlined />} onClick={openModuleCreate}>
-              Nuevo módulo
-            </Button>
-          }
+          extra={<Button type="primary" size="small" icon={<PlusOutlined />} onClick={openModuleCreate}>Nuevo módulo</Button>}
         >
-          <Table dataSource={modules} columns={moduleColumns} rowKey="id" size="small" pagination={false} />
+          <Table
+            dataSource={allModules}
+            columns={moduleColumns}
+            rowKey="id"
+            size="small"
+            pagination={false}
+            loading={loadingModules && modules.length === 0}
+          />
         </Card>
 
         <Card
           title="Planes disponibles"
           size="small"
-          extra={
-            <Button type="primary" size="small" icon={<PlusOutlined />} onClick={openPlanCreate}>
-              Nuevo plan
-            </Button>
-          }
+          extra={<Button type="primary" size="small" icon={<PlusOutlined />} onClick={openPlanCreate}>Nuevo plan</Button>}
         >
           <Table dataSource={plans} columns={planColumns} rowKey="value" size="small" pagination={false} />
         </Card>
@@ -216,12 +212,7 @@ export default function Settings() {
                   addonAfter="horas"
                   style={{ width: 180 }}
                 />
-                <Button
-                  type="primary"
-                  disabled={!graceChanged}
-                  loading={graceSaving}
-                  onClick={handleGraceSave}
-                >
+                <Button type="primary" disabled={!graceChanged} loading={graceSaving} onClick={handleGraceSave}>
                   Guardar
                 </Button>
               </Space>
@@ -233,7 +224,7 @@ export default function Settings() {
 
       {/* Modal módulos */}
       <Modal
-        title={editingModule ? `Editar: ${editingModule.label}` : 'Nuevo módulo'}
+        title={editingModule ? `Editar: ${editingModule.name || editingModule.label}` : 'Nuevo módulo'}
         open={moduleModal}
         onOk={handleModuleSave}
         onCancel={() => setModuleModal(false)}
@@ -241,19 +232,25 @@ export default function Settings() {
         cancelText="Cancelar"
       >
         <Form form={moduleForm} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item
-            name="id" label="ID (snake_case)"
-            rules={[
-              { required: true },
-              { pattern: /^[a-z][a-z0-9_]*$/, message: 'Solo minúsculas, números y guion bajo' },
-            ]}
-          >
-            <Input placeholder="ej: trabajo_en_altura" disabled={!!editingModule} />
+          {!editingModule && (
+            <Form.Item
+              name="licenseCode"
+              label="LicenseCode"
+              rules={[
+                { required: true },
+                { pattern: /^XPL-[A-Z0-9]+$/, message: 'Formato XPL-XX (ej: XPL-DC)' },
+              ]}
+              help="Se hardcodea en el build de la app. No se puede cambiar una vez publicado."
+            >
+              <Input placeholder="ej: XPL-DC" style={{ fontFamily: 'monospace', textTransform: 'uppercase' }} />
+            </Form.Item>
+          )}
+          <Form.Item name="name" label="Nombre para mostrar" rules={[{ required: true }]}>
+            <Input placeholder="ej: Derrame de combustible" />
           </Form.Item>
-          <Form.Item name="label" label="Nombre para mostrar" rules={[{ required: true }]}>
-            <Input placeholder="ej: Trabajo en altura" />
-          </Form.Item>
-          <Form.Item name="enabled" label="Estado" valuePropName="checked">
+          <Form.Item name="status" label="Estado" valuePropName="checked"
+            getValueFromEvent={v => v ? 'active' : 'inactive'}
+            getValueProps={v => ({ checked: v === 'active' })}>
             <Switch checkedChildren="Activo" unCheckedChildren="Inactivo" />
           </Form.Item>
         </Form>
@@ -272,14 +269,9 @@ export default function Settings() {
           <Form.Item name="label" label="Nombre del plan" rules={[{ required: true }]}>
             <Input placeholder="ej: 6 meses · 3 usuarios" />
           </Form.Item>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <Form.Item name="durationMonths" label="Duración (meses)">
-              <InputNumber min={1} max={36} style={{ width: '100%' }} />
-            </Form.Item>
-            <Form.Item name="defaultMaxUsers" label="Usuarios por defecto">
-              <InputNumber min={1} max={50} style={{ width: '100%' }} />
-            </Form.Item>
-          </div>
+          <Form.Item name="durationMonths" label="Duración (meses)">
+            <InputNumber min={1} max={36} style={{ width: '100%' }} />
+          </Form.Item>
         </Form>
       </Modal>
     </div>

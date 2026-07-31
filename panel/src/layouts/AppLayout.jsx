@@ -26,6 +26,7 @@ const { useBreakpoint } = Grid
 const navItems = [
   { key: '/dashboard',      icon: <DashboardOutlined />,          label: 'Dashboard' },
   { key: '/empresas',       icon: <BankOutlined />,               label: 'Empresas' },
+  { key: '/usuarios',       icon: <UserOutlined />,               label: 'Usuarios' },
   { key: '/licencias',      icon: <SafetyCertificateOutlined />,  label: 'Licencias' },
   { key: '/accesos',        icon: <EyeOutlined />,                label: 'Accesos' },
   { key: '/eventos',        icon: <UnorderedListOutlined />,      label: 'Eventos' },

@@ -11,7 +11,7 @@ function toDate(v) {
 }
 
 function deniedSeverity(reason = '') {
-  if (reason.includes('Límite') || reason.includes('no encontrada') || reason.includes('vencida')) return 'warning'
+  if (reason.includes('vencida') || reason.includes('bloqueada') || reason.includes('Sin licencia')) return 'warning'
   return 'info'
 }
 

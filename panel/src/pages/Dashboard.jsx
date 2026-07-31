@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { Card, Statistic, Table, Tag, Typography, Spin } from 'antd'
 import {
   CheckCircleOutlined, StopOutlined, ClockCircleOutlined,
-  ExclamationCircleOutlined, BankOutlined,
+  ExclamationCircleOutlined, AppstoreOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -17,8 +17,8 @@ const { Title } = Typography
 function toDate(v) { return v?.toDate ? v.toDate() : v ? new Date(v) : null }
 
 const licenseColumns = [
-  { title: 'Empresa',  dataIndex: 'companyName', key: 'company' },
-  { title: 'Código',   dataIndex: 'licenseCode',  key: 'code', render: v => <code style={{ fontSize: 12 }}>{v}</code> },
+  { title: 'Módulo', dataIndex: 'moduleName', key: 'module', render: v => v || '—' },
+  { title: 'Código', dataIndex: 'licenseCode', key: 'code', render: v => <code style={{ fontSize: 12 }}>{v}</code> },
   {
     title: 'Estado', dataIndex: 'status', key: 'status',
     render: s => { const cfg = STATUS_LABELS[s] || { label: s, color: 'default' }; return <Tag color={cfg.color}>{cfg.label}</Tag> },
@@ -27,10 +27,9 @@ const licenseColumns = [
 ]
 
 const deviceColumns = [
-  { title: 'Meta User ID', dataIndex: 'metaUserId', key: 'id', render: v => <code style={{ fontSize: 12 }}>{v}</code> },
-  { title: 'Nombre',       dataIndex: 'name',        key: 'name', render: v => v || '—' },
-  { title: 'Empresa',      dataIndex: 'companyName', key: 'company' },
-  { title: 'Último acceso', dataIndex: 'lastSeenAt', key: 'last', render: v => v ? dayjs(toDate(v)).fromNow() : '—' },
+  { title: 'Username', dataIndex: 'metaUsername', key: 'username', render: v => <code style={{ fontSize: 12 }}>{v}</code> },
+  { title: 'Nombre',   dataIndex: 'name',         key: 'name',     render: v => v || '—' },
+  { title: 'Último acceso', dataIndex: 'lastSeenAt', key: 'last',  render: v => v ? dayjs(toDate(v)).fromNow() : '—' },
 ]
 
 const expiringColumns = [
@@ -46,22 +45,26 @@ const expiringColumns = [
 export default function Dashboard() {
   const navigate = useNavigate()
   const role = useRole()
-  const [companies, loadingC]  = useCollection('companies')
-  const [licenses,  loadingL]  = useCollection('licenses')
-  const [userAccess, loadingU] = useCollection('userAccess')
+  const [companies, loadingC] = useCollection('companies')
+  const [licenses,  loadingL] = useCollection('licenses')
+  const [users,     loadingU] = useCollection('users')
+  const [modules,   loadingM] = useCollection('modules')
 
-  const loading = loadingC || loadingL || loadingU
+  const loading = loadingC || loadingL || loadingU || loadingM
 
   const companyById = useMemo(() => Object.fromEntries(companies.map(c => [c.id, c])), [companies])
+  const moduleById  = useMemo(() => Object.fromEntries(modules.map(m => [m.id, m.name || m.label || m.id])), [modules])
 
   const licensesWithNames = useMemo(() => licenses.map(l => ({
-    ...l, companyName: l.companyName || companyById[l.companyId]?.name || '—',
-  })), [licenses, companyById])
+    ...l,
+    moduleName:  moduleById[l.moduleId] || l.moduleId || '—',
+    companyName: l.companyName || companyById[l.companyId]?.name || '—',
+  })), [licenses, companyById, moduleById])
 
-  const accessWithNames = useMemo(() => [...userAccess]
+  const recentUsers = useMemo(() => [...users]
+    .filter(u => u.lastSeenAt)
     .sort((a, b) => (toDate(b.lastSeenAt) || 0) - (toDate(a.lastSeenAt) || 0))
-    .map(u => ({ ...u, companyName: u.companyName || companyById[u.companyId]?.name || '—' }))
-  , [userAccess, companyById])
+  , [users])
 
   const today = dayjs()
 
@@ -90,6 +93,7 @@ export default function Dashboard() {
     expired:         computedStatuses.filter(s => s === 'expired').length,
     expiringSoon:    expiringSoonList.length,
     activeCompanies: companies.filter(c => c.status === 'active').length,
+    activeModules:   modules.filter(m => m.status === 'active').length,
   }
 
   const adminKpis = [
@@ -102,7 +106,7 @@ export default function Dashboard() {
     { title: 'Licencias activas',  value: stats.active,          color: '#52c41a', icon: <CheckCircleOutlined />, link: '/licencias' },
     { title: 'Próximas a vencer',  value: stats.expiringSoon,    color: stats.expiringSoon > 0 ? '#D97706' : '#52c41a', icon: <ExclamationCircleOutlined />, sub: '≤ 7 días', alert: stats.expiringSoon > 0, link: '/licencias' },
     { title: 'Vencidas',           value: stats.expired,         color: '#faad14', icon: <ClockCircleOutlined />, link: '/licencias' },
-    { title: 'Empresas activas',   value: stats.activeCompanies, color: '#2563EB', icon: <BankOutlined />, link: '/empresas' },
+    { title: 'Módulos activos',     value: stats.activeModules,   color: '#2563EB', icon: <AppstoreOutlined />, link: '/configuracion' },
   ]
 
   const kpis = role === 'admin' ? adminKpis : marketingKpis
@@ -112,7 +116,7 @@ export default function Dashboard() {
     : { title: 'Próximas a vencer', data: expiringSoonList,              columns: expiringColumns, link: '/licencias' }
 
   const bottomRight = role === 'admin'
-    ? { title: 'Últimos accesos',   data: accessWithNames.slice(0, 5),  columns: deviceColumns,   link: '/accesos'   }
+    ? { title: 'Últimos accesos',   data: recentUsers.slice(0, 5),       columns: deviceColumns,   link: '/accesos'   }
     : { title: 'Licencias',         data: licensesWithNames.slice(0, 5), columns: licenseColumns,  link: '/licencias' }
 
   return (

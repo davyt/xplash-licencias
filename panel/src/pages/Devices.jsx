@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
-import { Table, Tag, Select, Input, Typography, Space, Alert, Spin, Button, Popconfirm, message } from 'antd'
-import { StopOutlined, CheckCircleOutlined } from '@ant-design/icons'
+import { Table, Tag, Select, Input, Typography, Space, Spin, Button, Popconfirm, message } from 'antd'
+import { StopOutlined, CheckCircleOutlined, GlobalOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { doc, updateDoc } from 'firebase/firestore'
@@ -18,44 +18,42 @@ function toDate(v) { return v?.toDate ? v.toDate() : v ? new Date(v) : null }
 
 export default function Devices() {
   const role = useRole()
-  const [userAccess, loading] = useCollection('userAccess')
+  const [users,     loading]  = useCollection('users')
   const [companies]           = useCollection('companies')
-  const [licenses]            = useCollection('licenses')
 
   const [filterCompany, setFilterCompany] = useState(null)
+  const [filterGlobal, setFilterGlobal]   = useState(null)
   const [search, setSearch]               = useState('')
   const [blocking, setBlocking]           = useState(null)
 
   const companyById = useMemo(() => Object.fromEntries(companies.map(c => [c.id, c])), [companies])
-  const licenseById = useMemo(() => Object.fromEntries(licenses.map(l => [l.id, l])),   [licenses])
 
-  const rows = useMemo(() => userAccess.map(u => ({
-    ...u,
-    companyName: u.companyName || companyById[u.companyId]?.name || '—',
-  })), [userAccess, companyById])
+  // Solo mostrar usuarios que ya se conectaron al menos una vez
+  const connected = useMemo(() => users.filter(u => u.metaUserId || u.lastSeenAt), [users])
 
-  const filtered = useMemo(() => rows.filter(d => {
-    if (filterCompany && d.companyId !== filterCompany) return false
+  const filtered = useMemo(() => connected.filter(u => {
+    if (filterCompany && u.companyId !== filterCompany) return false
+    if (filterGlobal !== null && !!u.isGlobal !== filterGlobal) return false
     if (search) {
       const q = search.toLowerCase()
-      if (!d.metaUserId.toLowerCase().includes(q) &&
-          !(d.metaUsername || '').toLowerCase().includes(q) &&
-          !(d.name  || '').toLowerCase().includes(q) &&
-          !(d.email || '').toLowerCase().includes(q)) return false
+      if (!u.metaUsername?.toLowerCase().includes(q) &&
+          !(u.metaUserId || '').toLowerCase().includes(q) &&
+          !(u.name  || '').toLowerCase().includes(q) &&
+          !(u.email || '').toLowerCase().includes(q)) return false
     }
     return true
-  }), [rows, filterCompany, search])
+  }), [connected, filterCompany, filterGlobal, search])
 
-  const offlineCount = useMemo(() => rows.filter(d => {
-    const last = toDate(d.lastSeenAt)
-    return last && (Date.now() - last.getTime()) / 3600000 > OFFLINE_THRESHOLD_HOURS
-  }).length, [rows])
+  const offlineCount = useMemo(() => connected.filter(u => {
+    const last = toDate(u.lastSeenAt)
+    return last && (Date.now() - last.getTime()) / 3_600_000 > OFFLINE_THRESHOLD_HOURS
+  }).length, [connected])
 
   const handleBlockToggle = async (record) => {
     const newStatus = record.status === 'blocked' ? 'active' : 'blocked'
     setBlocking(record.id)
     try {
-      await updateDoc(doc(db, 'userAccess', record.id), { status: newStatus })
+      await updateDoc(doc(db, 'users', record.id), { status: newStatus })
       message.success(newStatus === 'blocked' ? 'Usuario bloqueado' : 'Usuario desbloqueado')
     } catch (err) {
       console.error(err)
@@ -65,80 +63,48 @@ export default function Devices() {
     }
   }
 
-  const expandedRowRender = (record) => {
-    const license = licenseById[record.licenseId]
-    return (
-      <Space size={32} wrap style={{ padding: '4px 0 8px' }}>
-        {record.metaUsername && <div><Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Meta username</Text><Text>{record.metaUsername}</Text></div>}
-        {record.name  && <div><Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Nombre</Text><Text>{record.name}</Text></div>}
-        {record.email && <div><Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Email</Text><Text>{record.email}</Text></div>}
-        <div>
-          <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Licencia</Text>
-          <code style={{ fontSize: 12 }}>{license?.licenseCode || record.licenseId}</code>
-        </div>
-        <div>
-          <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Modelo</Text>
-          <Text>{record.deviceModel || <span style={{ color: '#bbb' }}>—</span>}</Text>
-        </div>
-        <div>
-          <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>SO</Text>
-          <Text>{record.osVersion || <span style={{ color: '#bbb' }}>—</span>}</Text>
-        </div>
-        <div>
-          <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Plataforma</Text>
-          <Text>{record.platform ? (PLATFORM_LABELS[record.platform] || record.platform) : <span style={{ color: '#bbb' }}>—</span>}</Text>
-        </div>
-        <div>
-          <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Primera conexión</Text>
-          <Text>{record.firstSeenAt ? dayjs(toDate(record.firstSeenAt)).format('DD/MM/YYYY HH:mm') : '—'}</Text>
-        </div>
-        {record.activationCode && (
-          <div>
-            <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Código activación</Text>
-            <code style={{ fontSize: 12 }}>{record.activationCode}</code>
-          </div>
-        )}
-      </Space>
-    )
-  }
+  const expandedRowRender = (record) => (
+    <Space size={32} wrap style={{ padding: '4px 0 8px' }}>
+      {record.email && <div><Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Email</Text><Text>{record.email}</Text></div>}
+      <div><Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Meta User ID</Text><code style={{ fontSize: 12 }}>{record.metaUserId || '—'}</code></div>
+      {companyById[record.companyId] && <div><Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Empresa</Text><Text>{companyById[record.companyId].name}</Text></div>}
+      <div><Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Modelo</Text><Text>{record.deviceModel || <span style={{ color: '#bbb' }}>—</span>}</Text></div>
+      <div><Text type="secondary" style={{ fontSize: 11, display: 'block' }}>SO</Text><Text>{record.osVersion || <span style={{ color: '#bbb' }}>—</span>}</Text></div>
+      <div><Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Plataforma</Text><Text>{record.platform ? (PLATFORM_LABELS[record.platform] || record.platform) : <span style={{ color: '#bbb' }}>—</span>}</Text></div>
+      <div><Text type="secondary" style={{ fontSize: 11, display: 'block' }}>Primera conexión</Text><Text>{record.createdAt ? dayjs(toDate(record.createdAt)).format('DD/MM/YYYY') : '—'}</Text></div>
+      {record.isGlobal && <div><Tag icon={<GlobalOutlined />} color="geekblue">Acceso global</Tag></div>}
+    </Space>
+  )
 
   const columns = [
     {
       title: 'Usuario', key: 'user',
       render: (_, r) => (
         <div>
-          {r.metaUsername
-            ? <div style={{ fontWeight: 500 }}>{r.metaUsername}</div>
-            : r.name
-              ? <div style={{ fontWeight: 500 }}>{r.name}</div>
-              : null}
-          <code style={{ fontSize: 11, color: '#888' }}>{r.metaUserId}</code>
+          <div style={{ fontWeight: 600, fontFamily: 'monospace', fontSize: 13 }}>{r.metaUsername}</div>
+          {r.name && <Text type="secondary" style={{ fontSize: 12 }}>{r.name}</Text>}
         </div>
       ),
     },
     {
-      title: 'Nombre / Email', key: 'nameEmail',
-      render: (_, r) => r.name || r.email ? (
-        <div>
-          {r.name  && <div style={{ fontWeight: 500 }}>{r.name}</div>}
-          {r.email && <Text type="secondary" style={{ fontSize: 12 }}>{r.email}</Text>}
-        </div>
-      ) : <span style={{ color: '#bbb' }}>—</span>,
+      title: 'Tipo', key: 'global',
+      render: (_, r) => r.isGlobal
+        ? <Tag icon={<GlobalOutlined />} color="geekblue">Global</Tag>
+        : <Tag color="default">Estándar</Tag>,
     },
-    { title: 'Empresa', dataIndex: 'companyName', key: 'company' },
     {
       title: 'Estado', dataIndex: 'status', key: 'status',
       render: s => s === 'blocked'
         ? <Tag color="error">Bloqueado</Tag>
         : <Tag color="success">Activo</Tag>,
     },
-    { title: 'Versión', dataIndex: 'appVersion', key: 'version', render: v => v || '—' },
+    { title: 'Versión app', dataIndex: 'appVersion', key: 'version', render: v => v || '—' },
     {
       title: 'Última conexión', dataIndex: 'lastSeenAt', key: 'last',
       render: v => {
         if (!v) return '—'
         const last = toDate(v)
-        const isOffline = (Date.now() - last.getTime()) / 3600000 > OFFLINE_THRESHOLD_HOURS
+        const isOffline = (Date.now() - last.getTime()) / 3_600_000 > OFFLINE_THRESHOLD_HOURS
         return (
           <span>
             {dayjs(last).fromNow()}
@@ -153,10 +119,10 @@ export default function Devices() {
         const isBlocked = record.status === 'blocked'
         return (
           <Popconfirm
-            title={isBlocked ? '¿Desbloquear este usuario?' : '¿Bloquear este usuario?'}
+            title={isBlocked ? '¿Desbloquear?' : '¿Bloquear?'}
             description={isBlocked
-              ? 'El usuario podrá volver a validar su licencia.'
-              : 'El usuario no podrá acceder hasta que sea desbloqueado.'}
+              ? 'El usuario podrá volver a conectarse.'
+              : 'El usuario no podrá acceder hasta ser desbloqueado.'}
             onConfirm={() => handleBlockToggle(record)}
             okText={isBlocked ? 'Desbloquear' : 'Bloquear'}
             cancelText="Cancelar"
@@ -185,17 +151,27 @@ export default function Devices() {
       </div>
 
       {offlineCount > 0 && (
-        <Alert type="warning" style={{ marginBottom: 16 }} showIcon
-          message={`${offlineCount} usuario(s) sin conexión hace más de ${OFFLINE_THRESHOLD_HOURS} horas`}
-          description="Pueden estar en modo offline. Si su grace period venció, el próximo arranque será denegado."
-        />
+        <div style={{ marginBottom: 16, padding: '8px 16px', background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 6, fontSize: 13 }}>
+          ⚠️ {offlineCount} usuario(s) sin conexión hace más de {OFFLINE_THRESHOLD_HOURS} horas
+        </div>
       )}
 
       <Space style={{ marginBottom: 16 }} wrap>
-        <Select placeholder="Empresa" allowClear style={{ width: 200 }} onChange={setFilterCompany}
-          options={companies.map(c => ({ value: c.id, label: c.name }))} />
-        <Input placeholder="Buscar por username, Meta User ID, nombre o email..."
-          value={search} onChange={e => setSearch(e.target.value)} style={{ width: 300 }} allowClear />
+        <Select value={filterGlobal === null ? '' : String(filterGlobal)} style={{ width: 160 }}
+          onChange={v => setFilterGlobal(v === '' ? null : v === 'true')}
+          options={[
+            { value: '',      label: 'Todos los tipos' },
+            { value: 'true',  label: 'Global' },
+            { value: 'false', label: 'Estándar' },
+          ]} />
+        <Select value={filterCompany || ''} style={{ width: 210 }}
+          onChange={v => setFilterCompany(v || null)}
+          options={[
+            { value: '', label: 'Todas las empresas' },
+            ...companies.map(c => ({ value: c.id, label: c.name })),
+          ]} />
+        <Input placeholder="Buscar username, nombre o email..."
+          value={search} onChange={e => setSearch(e.target.value)} style={{ width: 280 }} allowClear />
       </Space>
 
       <Table

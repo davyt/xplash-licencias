@@ -15,6 +15,7 @@ import Devices from './pages/Devices'
 import Events from './pages/Events'
 import Settings from './pages/Settings'
 import Team from './pages/Team'
+import Users from './pages/Users'
 
 dayjs.locale('es')
 
@@ -71,6 +72,7 @@ export default function App() {
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="empresas" element={<Companies />} />
+            <Route path="usuarios" element={<Users />} />
             <Route path="licencias" element={<Licenses />} />
             <Route path="accesos" element={<Devices />} />
             <Route path="eventos" element={<Events />} />
