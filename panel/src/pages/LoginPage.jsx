@@ -36,7 +36,7 @@ export default function LoginPage() {
       <Card style={{ width: 380, borderRadius: 12 }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <img
-            src="https://experiencias.xplash.org/xplash_logo.svg"
+            src="/xplash_logo.svg"
             alt="Xplash"
             style={{ height: 56, width: 'auto', marginBottom: 16, filter: dark ? 'brightness(0) invert(1)' : 'none' }}
           />

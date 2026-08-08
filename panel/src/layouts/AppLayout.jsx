@@ -47,7 +47,7 @@ function SiderContent({ onNavigate }) {
     <>
       <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <img
-          src="https://experiencias.xplash.org/xplash_logo.svg"
+          src="/xplash_logo.svg"
           alt="Xplash"
           height="32"
           style={{ display: 'block', marginBottom: 4, filter: 'brightness(0) invert(1)' }}
