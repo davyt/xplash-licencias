@@ -189,8 +189,8 @@ export default function Settings() {
   const planColumns = [
     { title: 'Nombre', dataIndex: 'label', key: 'label' },
     {
-      title: 'Duración', dataIndex: 'durationMonths', key: 'duration',
-      render: v => v ? `${v} mes${v > 1 ? 'es' : ''}` : '—',
+      title: 'Duración', key: 'duration',
+      render: (_, r) => r.durationDays ? `${r.durationDays} día${r.durationDays > 1 ? 's' : ''}` : r.durationMonths ? `${r.durationMonths} mes${r.durationMonths > 1 ? 'es' : ''}` : '—',
     },
     { title: 'ID', dataIndex: 'value', key: 'value', render: v => <code style={{ fontSize: 11 }}>{v}</code> },
     {
@@ -358,8 +358,11 @@ export default function Settings() {
           <Form.Item name="label" label="Nombre del plan" rules={[{ required: true }]}>
             <Input placeholder="ej: 6 meses · 3 usuarios" />
           </Form.Item>
-          <Form.Item name="durationMonths" label="Duración (meses)">
+          <Form.Item name="durationMonths" label="Duración (meses)" help="Dejar vacío si el plan se mide en días.">
             <InputNumber min={1} max={36} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="durationDays" label="Duración (días)" help="Solo completar si el plan es menor a 1 mes.">
+            <InputNumber min={1} max={30} style={{ width: '100%' }} />
           </Form.Item>
         </Form>
       </Modal>

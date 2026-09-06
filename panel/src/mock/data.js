@@ -83,6 +83,7 @@ export const MODULES = [
 ]
 
 export const PLANS = [
+  { value: '3d',     label: '3 días',    durationDays: 3,  durationMonths: null },
   { value: '1m',     label: '1 mes',     durationMonths: 1    },
   { value: '3m',     label: '3 meses',   durationMonths: 3    },
   { value: '6m',     label: '6 meses',   durationMonths: 6    },

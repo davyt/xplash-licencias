@@ -33,7 +33,7 @@ export default function Licenses() {
 
   const [renewModal, setRenewModal]   = useState(false)
   const [renewTarget, setRenewTarget] = useState(null)
-  const [renewMonths, setRenewMonths] = useState(6)
+  const [renewPeriod, setRenewPeriod] = useState('6m')
   const [renewNotes, setRenewNotes]   = useState('')
 
   // Fusionar módulos de Firestore con fallback al mock
@@ -69,11 +69,16 @@ export default function Licenses() {
     return exp && dayjs(exp).isBefore(dayjs()) ? dayjs() : dayjs(exp)
   }
 
-  const openRenew = (record) => { setRenewTarget(record); setRenewMonths(6); setRenewNotes(''); setRenewModal(true) }
+  const applyPeriod = (base, period) => {
+    if (period === '3d') return base.add(3, 'day')
+    return base.add(parseInt(period), 'month')
+  }
+
+  const openRenew = (record) => { setRenewTarget(record); setRenewPeriod('6m'); setRenewNotes(''); setRenewModal(true) }
 
   const handleRenew = async () => {
     const base      = getRenewBase(renewTarget)
-    const newExpiry = base.add(renewMonths, 'month').format('YYYY-MM-DD')
+    const newExpiry = applyPeriod(base, renewPeriod).format('YYYY-MM-DD')
     try {
       await updateDoc(doc(db, 'licenses', renewTarget.id), { expiresAt: newExpiry, status: 'active' })
       await addDoc(collection(db, 'contracts'), {
@@ -147,8 +152,10 @@ export default function Licenses() {
     // Auto-calc expiresAt from plan + startDate
     if (!('plan' in changed) && !('startDate' in changed)) return
     const planConfig = PLANS.find(p => p.value === all.plan)
-    if (!planConfig?.durationMonths || !all.startDate) return
-    const newExpiry = dayjs(all.startDate).add(planConfig.durationMonths, 'month')
+    if ((!planConfig?.durationMonths && !planConfig?.durationDays) || !all.startDate) return
+    const newExpiry = planConfig.durationDays
+      ? dayjs(all.startDate).add(planConfig.durationDays, 'day')
+      : dayjs(all.startDate).add(planConfig.durationMonths, 'month')
     if (editing) {
       setEditExpiry(newExpiry.format('YYYY-MM-DD'))
       if ('plan' in changed) setEditExpiryChanged(true)
@@ -286,7 +293,8 @@ export default function Licenses() {
           const expDate   = toDate(renewTarget.expiresAt)
           const isExpired = expDate && dayjs(expDate).isBefore(dayjs())
           const base      = getRenewBase(renewTarget)
-          const newExpiry = base.add(renewMonths, 'month')
+          const newExpiry = applyPeriod(base, renewPeriod)
+          const periodLabel = renewPeriod === '3d' ? '3 días' : `${parseInt(renewPeriod)} ${parseInt(renewPeriod) === 1 ? 'mes' : 'meses'}`
           return (
             <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
               {isExpired && <Alert type="warning" showIcon message="La licencia está vencida — la renovación parte desde hoy." />}
@@ -305,16 +313,17 @@ export default function Licenses() {
               </div>
               <div>
                 <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.5px', color: '#999', marginBottom: 8 }}>Extender por</div>
-                <Radio.Group value={renewMonths} onChange={e => setRenewMonths(e.target.value)}>
-                  <Radio.Button value={1}>1 mes</Radio.Button>
-                  <Radio.Button value={3}>3 meses</Radio.Button>
-                  <Radio.Button value={6}>6 meses</Radio.Button>
-                  <Radio.Button value={12}>12 meses</Radio.Button>
+                <Radio.Group value={renewPeriod} onChange={e => setRenewPeriod(e.target.value)}>
+                  <Radio.Button value="3d">3 días</Radio.Button>
+                  <Radio.Button value="1m">1 mes</Radio.Button>
+                  <Radio.Button value="3m">3 meses</Radio.Button>
+                  <Radio.Button value="6m">6 meses</Radio.Button>
+                  <Radio.Button value="12m">12 meses</Radio.Button>
                 </Radio.Group>
               </div>
               <div style={{ background: '#f0f7ff', border: '1px solid #bae0ff', borderRadius: 8, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ color: '#555', fontSize: 13 }}>
-                  {isExpired ? 'Desde hoy' : `Desde ${base.format('DD/MM/YYYY')}`} + {renewMonths} {renewMonths === 1 ? 'mes' : 'meses'}
+                  {isExpired ? 'Desde hoy' : `Desde ${base.format('DD/MM/YYYY')}`} + {periodLabel}
                 </span>
                 <span style={{ fontWeight: 700, fontSize: 16, color: '#2563EB' }}>{newExpiry.format('DD/MM/YYYY')}</span>
               </div>
