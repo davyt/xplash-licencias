@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Card, Table, Button, Modal, Form, Input, InputNumber, Switch, Typography, Space, Spin, message, Tag } from 'antd'
-import { PlusOutlined, EditOutlined } from '@ant-design/icons'
+import { Card, Table, Button, Modal, Form, Input, InputNumber, Switch, Typography, Space, Spin, message, Tag, Divider } from 'antd'
+import { PlusOutlined, EditOutlined, MailOutlined } from '@ant-design/icons'
 import { doc, getDoc, setDoc, collection, addDoc, updateDoc } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useCollection } from '../hooks/useCollection'
@@ -9,6 +9,18 @@ import { MODULES as MOCK_MODULES, PLANS as DEFAULT_PLANS, DEFAULT_GRACE_HOURS } 
 const { Title } = Typography
 
 const SETTINGS_REF = doc(db, 'settings', 'global')
+
+const DEFAULT_NOTIFICATIONS = {
+  nearExpiry: { enabled: false, emails: '', daysBeforeExpiry: 3 },
+  expired:    { enabled: false, emails: '' },
+  blocked:    { enabled: false, emails: '' },
+}
+
+const NOTIFICATION_TYPES = [
+  { key: 'nearExpiry', label: 'Licencia próxima a vencer',  desc: 'Se envía N días antes del vencimiento.' },
+  { key: 'expired',    label: 'Licencia vencida',           desc: 'Se envía el día en que la licencia vence.' },
+  { key: 'blocked',    label: 'Licencia bloqueada',         desc: 'Se envía al bloquear una licencia manualmente.' },
+]
 
 async function persistSettings(patch) {
   await setDoc(SETTINGS_REF, patch, { merge: true })
@@ -20,6 +32,9 @@ export default function Settings() {
   const [defaultGrace, setDefaultGrace]       = useState(DEFAULT_GRACE_HOURS)
   const [graceChanged, setGraceChanged]       = useState(false)
   const [graceSaving, setGraceSaving]         = useState(false)
+  const [notifications, setNotifications]     = useState(DEFAULT_NOTIFICATIONS)
+  const [notifChanged, setNotifChanged]       = useState(false)
+  const [notifSaving, setNotifSaving]         = useState(false)
 
   // Módulos vienen de la colección Firestore 'modules', no de settings/global
   const [modules, loadingModules] = useCollection('modules')
@@ -40,6 +55,7 @@ export default function Settings() {
           const data = snap.data()
           if (data.plans?.length)                         setPlans(data.plans)
           if (typeof data.defaultGraceHours === 'number') setDefaultGrace(data.defaultGraceHours)
+          if (data.notifications)                         setNotifications({ ...DEFAULT_NOTIFICATIONS, ...data.notifications })
         }
       })
       .catch(err => console.error('Error cargando configuración:', err))
@@ -121,6 +137,24 @@ export default function Settings() {
     })
   }
 
+  const patchNotif = (key, field, value) => {
+    setNotifications(prev => ({ ...prev, [key]: { ...prev[key], [field]: value } }))
+    setNotifChanged(true)
+  }
+
+  const handleNotifSave = async () => {
+    setNotifSaving(true)
+    try {
+      await persistSettings({ notifications })
+      message.success('Configuración de notificaciones guardada')
+      setNotifChanged(false)
+    } catch (err) {
+      message.error('No se pudo guardar')
+    } finally {
+      setNotifSaving(false)
+    }
+  }
+
   const handleGraceSave = async () => {
     setGraceSaving(true)
     try {
@@ -196,6 +230,61 @@ export default function Settings() {
           extra={<Button type="primary" size="small" icon={<PlusOutlined />} onClick={openPlanCreate}>Nuevo plan</Button>}
         >
           <Table dataSource={plans} columns={planColumns} rowKey="value" size="small" pagination={false} />
+        </Card>
+
+        <Card
+          title={<Space><MailOutlined />Notificaciones por email</Space>}
+          size="small"
+          extra={
+            <Button type="primary" size="small" disabled={!notifChanged} loading={notifSaving} onClick={handleNotifSave}>
+              Guardar cambios
+            </Button>
+          }
+        >
+          <div style={{ fontSize: 12, color: 'var(--ant-color-text-secondary)', marginBottom: 16 }}>
+            Las notificaciones se envían cuando el sistema de emails esté configurado. Podés preparar los destinatarios y activarlas ahora.
+          </div>
+          {NOTIFICATION_TYPES.map((type, idx) => {
+            const cfg = notifications[type.key]
+            return (
+              <div key={type.key}>
+                {idx > 0 && <Divider style={{ margin: '12px 0' }} />}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+                  <Switch
+                    checked={cfg.enabled}
+                    onChange={v => patchNotif(type.key, 'enabled', v)}
+                    style={{ marginTop: 3, flexShrink: 0 }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 500, marginBottom: 2 }}>{type.label}</div>
+                    <div style={{ fontSize: 12, color: 'var(--ant-color-text-secondary)', marginBottom: 8 }}>
+                      {type.desc}
+                      {type.key === 'nearExpiry' && (
+                        <span style={{ marginLeft: 8 }}>
+                          Días de anticipación:{' '}
+                          <InputNumber
+                            min={1} max={30}
+                            size="small"
+                            value={cfg.daysBeforeExpiry}
+                            onChange={v => patchNotif(type.key, 'daysBeforeExpiry', v)}
+                            style={{ width: 60 }}
+                          />
+                        </span>
+                      )}
+                    </div>
+                    <Input
+                      placeholder="correo@empresa.com, otro@empresa.com"
+                      value={cfg.emails}
+                      onChange={e => patchNotif(type.key, 'emails', e.target.value)}
+                      size="small"
+                      disabled={!cfg.enabled}
+                      style={{ maxWidth: 480 }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </Card>
 
         <Card title="Parámetros globales" size="small">
