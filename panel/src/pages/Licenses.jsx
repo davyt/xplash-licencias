@@ -66,7 +66,8 @@ export default function Licenses() {
 
   const getRenewBase = (lic) => {
     const exp = toDate(lic.expiresAt)
-    return exp && dayjs(exp).isBefore(dayjs()) ? dayjs() : dayjs(exp)
+    if (!exp) return dayjs()
+    return dayjs(exp).isBefore(dayjs()) ? dayjs() : dayjs(exp)
   }
 
   const applyPeriod = (base, period) => {
