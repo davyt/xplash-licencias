@@ -50,7 +50,7 @@ const validateLicense = onRequest({ cors: false, region: 'southamerica-east1' },
     return res.status(429).json({ allowed: false, reason: 'Demasiadas solicitudes. Intentá más tarde.' })
   }
 
-  const { licenseCode, metaUserId, metaUsername, appVersion, deviceModel, osVersion, platform } = req.body
+  const { licenseCode, metaUserId, metaUsername, appVersion, deviceModel, osVersion, platform, deviceId } = req.body
 
   if (!licenseCode || !metaUserId || !metaUsername) {
     return res.status(400).json({ allowed: false, reason: 'Faltan parámetros requeridos: licenseCode, metaUserId, metaUsername' })
@@ -135,6 +135,45 @@ const validateLicense = onRequest({ cors: false, region: 'southamerica-east1' },
 
     const license   = validLicenses[0]
     const expiresAt = license.expiresAt?.toDate ? license.expiresAt.toDate() : new Date(license.expiresAt)
+
+    // Control por dispositivo (opcional — solo si deviceId viene en el body)
+    if (deviceId && typeof deviceId === 'string' && deviceId.length >= 4) {
+      const deviceRef  = db.collection('licenses').doc(license.id).collection('devices').doc(deviceId)
+      const deviceSnap = await deviceRef.get()
+
+      if (deviceSnap.exists) {
+        const deviceData = deviceSnap.data()
+        if (deviceData.status === 'blocked') {
+          await logEvent({ licenseCode, metaUserId, metaUsername, moduleId: license.moduleId || null, licenseId: license.id, allowed: false, reason: 'Dispositivo bloqueado' })
+          return res.json({ allowed: false, reason: 'Este visor está bloqueado para esta licencia.' })
+        }
+        // Dispositivo ya registrado — actualizar lastSeenAt
+        await deviceRef.update({ lastSeenAt: new Date(), metaUsername, appVersion: appVersion || null, deviceModel: deviceModel || null })
+      } else {
+        // Dispositivo nuevo — verificar límite
+        if (license.maxDevices) {
+          const devSnap = await db.collection('licenses').doc(license.id).collection('devices').get()
+          const activeCount = devSnap.docs.filter(d => d.data().status !== 'blocked').length
+          if (activeCount >= license.maxDevices) {
+            await logEvent({ licenseCode, metaUserId, metaUsername, moduleId: license.moduleId || null, licenseId: license.id, allowed: false, reason: 'Límite de dispositivos alcanzado' })
+            return res.json({ allowed: false, reason: 'Límite de dispositivos alcanzado para esta licencia.' })
+          }
+        }
+        // Registrar dispositivo nuevo
+        await deviceRef.set({
+          deviceId,
+          metaUserId:  metaUserId || null,
+          metaUsername,
+          deviceModel: deviceModel || null,
+          appVersion:  appVersion  || null,
+          osVersion:   osVersion   || null,
+          platform:    platform    || null,
+          status:      'active',
+          firstSeenAt: new Date(),
+          lastSeenAt:  new Date(),
+        })
+      }
+    }
 
     await updateUser(userRef, user, { metaUserId, appVersion, deviceModel, osVersion, platform })
     await logEvent({ licenseCode, metaUserId, metaUsername, moduleId: license.moduleId || null, licenseId: license.id, allowed: true, reason: null })

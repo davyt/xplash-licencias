@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react'
 import { Table, Button, Tag, Input, Select, Modal, Form, InputNumber, DatePicker,
-         Typography, Space, Tooltip, message, Popconfirm, Radio, Alert, Spin } from 'antd'
-import { PlusOutlined, EditOutlined, CopyOutlined, StopOutlined, SyncOutlined, InfoCircleOutlined, DeleteOutlined } from '@ant-design/icons'
+         Typography, Space, Tooltip, message, Popconfirm, Radio, Alert, Spin, Drawer } from 'antd'
+import { PlusOutlined, EditOutlined, CopyOutlined, StopOutlined, SyncOutlined, InfoCircleOutlined, DeleteOutlined, MobileOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import { collection, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore'
+import { collection, doc, addDoc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useCollection } from '../hooks/useCollection'
 import { useRole } from '../hooks/useRole'
@@ -35,6 +35,11 @@ export default function Licenses() {
   const [renewTarget, setRenewTarget] = useState(null)
   const [renewPeriod, setRenewPeriod] = useState('6m')
   const [renewNotes, setRenewNotes]   = useState('')
+
+  const [devDrawer, setDevDrawer]     = useState(false)
+  const [devTarget, setDevTarget]     = useState(null)
+  const [devices, setDevices]         = useState([])
+  const [loadingDevices, setLoadingDevices] = useState(false)
 
   // Fusionar módulos de Firestore con fallback al mock
   const allModules = useMemo(() => {
@@ -68,6 +73,38 @@ export default function Licenses() {
     const exp = toDate(lic.expiresAt)
     if (!exp) return dayjs()
     return dayjs(exp).isBefore(dayjs()) ? dayjs() : dayjs(exp)
+  }
+
+  const openDevices = async (record) => {
+    setDevTarget(record)
+    setDevDrawer(true)
+    setLoadingDevices(true)
+    try {
+      const snap = await getDocs(collection(db, 'licenses', record.id, 'devices'))
+      setDevices(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    } catch (err) {
+      console.error(err)
+      message.error('No se pudieron cargar los dispositivos')
+    } finally {
+      setLoadingDevices(false)
+    }
+  }
+
+  const handleDeviceAction = async (device, action) => {
+    const ref = doc(db, 'licenses', devTarget.id, 'devices', device.id)
+    try {
+      if (action === 'block')   await updateDoc(ref, { status: 'blocked' })
+      if (action === 'unblock') await updateDoc(ref, { status: 'active' })
+      if (action === 'release') await deleteDoc(ref)
+      setDevices(prev =>
+        action === 'release'
+          ? prev.filter(d => d.id !== device.id)
+          : prev.map(d => d.id === device.id ? { ...d, status: action === 'block' ? 'blocked' : 'active' } : d)
+      )
+      message.success(action === 'release' ? 'Dispositivo liberado' : action === 'block' ? 'Dispositivo bloqueado' : 'Dispositivo desbloqueado')
+    } catch (err) {
+      message.error('No se pudo realizar la acción')
+    }
   }
 
   const applyPeriod = (base, period) => {
@@ -137,6 +174,7 @@ export default function Licenses() {
       status:           record.status,
       plan:             record.plan,
       offlineGraceHours: record.offlineGraceHours ?? 48,
+      maxDevices:        record.maxDevices ?? null,
       userIds:          record.userIds || [],
       startDate:        record.startDate ? dayjs(toDate(record.startDate)) : null,
       notes:            record.notes,
@@ -177,6 +215,7 @@ export default function Licenses() {
           plan:              values.plan || null,
           userIds:           values.userIds || [],
           offlineGraceHours: values.offlineGraceHours ?? 48,
+          maxDevices:        values.maxDevices ?? null,
           startDate:         values.startDate?.format('YYYY-MM-DD') || null,
           expiresAt:         editing ? editExpiry : (values.expiresAt?.format('YYYY-MM-DD') || null),
           notes:             values.notes || null,
@@ -224,11 +263,12 @@ export default function Licenses() {
       },
     },
     {
-      title: '', key: 'actions', width: 150,
+      title: '', key: 'actions', width: 170,
       render: (_, record) => (
         <Space>
           <Tooltip title="Copiar código"><Button icon={<CopyOutlined />} size="small" onClick={() => copyCode(record.licenseCode)} /></Tooltip>
           <Tooltip title="Editar"><Button icon={<EditOutlined />} size="small" onClick={() => openEdit(record)} /></Tooltip>
+          <Tooltip title="Dispositivos"><Button icon={<MobileOutlined />} size="small" onClick={() => openDevices(record)} /></Tooltip>
           {record.status !== 'draft' && (
             <Tooltip title="Renovar">
               <Button icon={<SyncOutlined />} size="small" onClick={() => openRenew(record)} style={{ color: '#2563EB', borderColor: '#2563EB' }} />
@@ -283,6 +323,58 @@ export default function Licenses() {
       <Table dataSource={filtered} columns={columns} rowKey="id" size="middle"
         scroll={{ x: 'max-content' }}
         pagination={{ pageSize: 10, showTotal: (t, r) => `${r[0]}–${r[1]} de ${t}` }} />
+
+      {/* Drawer dispositivos */}
+      <Drawer
+        title={devTarget ? `Dispositivos — ${devTarget.licenseCode}` : 'Dispositivos'}
+        open={devDrawer}
+        onClose={() => setDevDrawer(false)}
+        width={600}
+        extra={devTarget?.maxDevices ? <span style={{ fontSize: 12, color: '#999' }}>Límite: {devTarget.maxDevices} dispositivos</span> : null}
+      >
+        <Table
+          dataSource={devices}
+          rowKey="id"
+          loading={loadingDevices}
+          size="small"
+          pagination={false}
+          locale={{ emptyText: 'Ningún dispositivo registrado aún. Se registran automáticamente en la primera validación online.' }}
+          columns={[
+            { title: 'Device ID', dataIndex: 'id', key: 'id', render: v => <code style={{ fontSize: 11 }}>{v}</code> },
+            { title: 'Modelo', dataIndex: 'deviceModel', key: 'model', render: v => v || '—' },
+            { title: 'Usuario', dataIndex: 'metaUsername', key: 'user', render: v => v || '—' },
+            {
+              title: 'Estado', dataIndex: 'status', key: 'status',
+              render: v => v === 'blocked'
+                ? <Tag color="error">Bloqueado</Tag>
+                : <Tag color="success">Activo</Tag>,
+            },
+            {
+              title: 'Última conexión', dataIndex: 'lastSeenAt', key: 'last',
+              render: v => v ? dayjs(v?.toDate ? v.toDate() : new Date(v)).format('DD/MM/YYYY HH:mm') : '—',
+            },
+            {
+              title: '', key: 'devActions', width: 120,
+              render: (_, d) => (
+                <Space>
+                  {d.status !== 'blocked'
+                    ? <Tooltip title="Bloquear"><Button size="small" danger icon={<StopOutlined />} onClick={() => handleDeviceAction(d, 'block')} /></Tooltip>
+                    : <Tooltip title="Desbloquear"><Button size="small" icon={<SyncOutlined />} onClick={() => handleDeviceAction(d, 'unblock')} /></Tooltip>
+                  }
+                  <Popconfirm
+                    title="¿Liberar este dispositivo?"
+                    description="Se elimina el registro. Un nuevo visor podrá tomar su lugar."
+                    onConfirm={() => handleDeviceAction(d, 'release')}
+                    okText="Liberar" okButtonProps={{ danger: true }} cancelText="Cancelar"
+                  >
+                    <Tooltip title="Liberar slot"><Button size="small" icon={<DeleteOutlined />} /></Tooltip>
+                  </Popconfirm>
+                </Space>
+              ),
+            },
+          ]}
+        />
+      </Drawer>
 
       {/* Modal renovación */}
       <Modal title={renewTarget ? `Renovar: ${renewTarget.licenseCode}` : 'Renovar'}
@@ -368,6 +460,11 @@ export default function Licenses() {
             </Form.Item>
             <Form.Item name="offlineGraceHours" label="Grace period (horas)">
               <InputNumber min={0} max={720} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="maxDevices" label={
+              <span>Máx. dispositivos <Tooltip title="Límite de visores Quest que pueden usar esta licencia. Dejar vacío para sin límite."><InfoCircleOutlined style={{ color: '#999', fontSize: 12 }} /></Tooltip></span>
+            }>
+              <InputNumber min={1} max={100} placeholder="Sin límite" style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item name="startDate" label="Inicio">
               <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
