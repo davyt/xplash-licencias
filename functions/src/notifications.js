@@ -41,35 +41,77 @@ async function sendEmail(resend, { to, subject, html }) {
   await resend.emails.send({ from: FROM, to, subject, html })
 }
 
-function emailHtml({ title, body, licenseCode, company, expiresAt }) {
-  return `
-    <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px">
-      <img src="https://licencias.xplash.org/xplash_logo.svg" height="36"
-           style="margin-bottom:24px;filter:brightness(0)" alt="Xplash"/>
-      <h2 style="color:#1a1a1a;margin:0 0 8px">${title}</h2>
-      <p style="color:#555;margin:0 0 24px">${body}</p>
-      <table style="border-collapse:collapse;width:100%;font-size:14px">
+function badgeStyle(title) {
+  if (/bloqueada/i.test(title))        return 'background:#FEE2E2;color:#991B1B'
+  if (/vencida/i.test(title))          return 'background:#FEF3C7;color:#92400E'
+  if (/próxima|proxima/i.test(title))  return 'background:#DBEAFE;color:#1E40AF'
+  return 'background:#F3F4F6;color:#374151'
+}
+
+function emailHtml({ title, body, licenseCode, company, expiresAt, showPanelButton = false }) {
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F3F4F6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F3F4F6;padding:32px 16px">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%">
+
+        <!-- Header -->
         <tr>
-          <td style="padding:8px 12px;background:#f5f5f5;font-weight:600;width:140px">Licencia</td>
-          <td style="padding:8px 12px;border-bottom:1px solid #eee"><code>${licenseCode}</code></td>
+          <td style="background:#ffffff;border-radius:12px 12px 0 0;padding:24px 32px;border-bottom:3px solid #111827;border-left:1px solid #E5E7EB;border-right:1px solid #E5E7EB;border-top:1px solid #E5E7EB">
+            <img src="https://licencias.xplash.org/xplash_logo.svg" height="52"
+                 style="display:block" alt="Xplash"/>
+          </td>
         </tr>
-        ${company ? `
+
+        <!-- Body -->
         <tr>
-          <td style="padding:8px 12px;background:#f5f5f5;font-weight:600">Empresa</td>
-          <td style="padding:8px 12px;border-bottom:1px solid #eee">${company}</td>
-        </tr>` : ''}
-        ${expiresAt ? `
+          <td style="background:#ffffff;padding:32px 32px 24px;border-left:1px solid #E5E7EB;border-right:1px solid #E5E7EB">
+            <span style="display:inline-block;font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;padding:4px 10px;border-radius:20px;margin-bottom:20px;${badgeStyle(title)}">${title}</span>
+            <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#374151">${body}</p>
+
+            <!-- Datos licencia -->
+            <table width="100%" cellpadding="0" cellspacing="0"
+                   style="border:1px solid #E5E7EB;border-radius:8px;overflow:hidden;font-size:14px">
+              <tr>
+                <td style="padding:11px 16px;background:#F9FAFB;color:#6B7280;font-weight:600;width:130px;border-bottom:1px solid #E5E7EB;white-space:nowrap">Licencia</td>
+                <td style="padding:11px 16px;color:#111827;border-bottom:1px solid #E5E7EB;font-family:monospace;font-size:13px">${licenseCode}</td>
+              </tr>
+              ${company ? `<tr>
+                <td style="padding:11px 16px;background:#F9FAFB;color:#6B7280;font-weight:600;border-bottom:1px solid #E5E7EB">Empresa</td>
+                <td style="padding:11px 16px;color:#111827;border-bottom:1px solid #E5E7EB">${company}</td>
+              </tr>` : ''}
+              ${expiresAt ? `<tr>
+                <td style="padding:11px 16px;background:#F9FAFB;color:#6B7280;font-weight:600">Vencimiento</td>
+                <td style="padding:11px 16px;color:#111827">${formatDate(expiresAt)}</td>
+              </tr>` : ''}
+            </table>
+
+            ${showPanelButton ? `
+            <div style="margin-top:24px;text-align:center">
+              <a href="https://licencias.xplash.org"
+                 style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 28px;border-radius:8px;letter-spacing:.2px">
+                Ver en el panel →
+              </a>
+            </div>` : ''}
+          </td>
+        </tr>
+
+        <!-- Footer -->
         <tr>
-          <td style="padding:8px 12px;background:#f5f5f5;font-weight:600">Vencimiento</td>
-          <td style="padding:8px 12px;border-bottom:1px solid #eee">${formatDate(expiresAt)}</td>
-        </tr>` : ''}
+          <td style="background:#F9FAFB;border:1px solid #E5E7EB;border-top:none;border-radius:0 0 12px 12px;padding:16px 32px;text-align:center">
+            <p style="margin:0;font-size:12px;color:#9CA3AF;line-height:1.5">
+              Este mensaje fue generado automáticamente por el sistema de licencias VR de Xplash.<br>
+              <a href="https://licencias.xplash.org" style="color:#6B7280;text-decoration:underline">licencias.xplash.org</a>
+            </p>
+          </td>
+        </tr>
+
       </table>
-      <p style="color:#999;font-size:12px;margin-top:32px">
-        Gestioná esta licencia desde
-        <a href="https://licencias.xplash.org" style="color:#2563EB">licencias.xplash.org</a>
-      </p>
-    </div>
-  `
+    </td></tr>
+  </table>
+</body></html>`
 }
 
 // ─── tarea diaria ──────────────────────────────────────────────────────────
@@ -109,11 +151,12 @@ exports.checkLicensesJob = functions
             to,
             subject: `Licencia vencida: ${lic.licenseCode}`,
             html: emailHtml({
-              title:       'Licencia vencida',
-              body:        'La siguiente licencia llegó a su fecha de vencimiento. El acceso fue bloqueado automáticamente.',
-              licenseCode: lic.licenseCode,
-              company:     lic.companyName || lic.companyId || null,
-              expiresAt:   exp,
+              title:           'Licencia vencida',
+              body:            'La siguiente licencia llegó a su fecha de vencimiento. El acceso fue bloqueado automáticamente.',
+              licenseCode:     lic.licenseCode,
+              company:         lic.companyName || lic.companyId || null,
+              expiresAt:       exp,
+              showPanelButton: true,
             }),
           }))
         }
@@ -135,11 +178,12 @@ exports.checkLicensesJob = functions
             to,
             subject: `Licencia próxima a vencer: ${lic.licenseCode} (${daysLeft} día${daysLeft === 1 ? '' : 's'})`,
             html: emailHtml({
-              title:       `Licencia vence en ${daysLeft} día${daysLeft === 1 ? '' : 's'}`,
-              body:        'La siguiente licencia está próxima a su fecha de vencimiento. Renovarla desde el panel evita interrupciones de acceso.',
-              licenseCode: lic.licenseCode,
-              company:     lic.companyName || lic.companyId || null,
-              expiresAt:   exp,
+              title:           `Licencia vence en ${daysLeft} día${daysLeft === 1 ? '' : 's'}`,
+              body:            'La siguiente licencia está próxima a su fecha de vencimiento. Renovarla desde el panel evita interrupciones de acceso.',
+              licenseCode:     lic.licenseCode,
+              company:         lic.companyName || lic.companyId || null,
+              expiresAt:       exp,
+              showPanelButton: true,
             }),
           }))
         }
