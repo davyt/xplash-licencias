@@ -118,7 +118,10 @@ export default function Licenses() {
     const base      = getRenewBase(renewTarget)
     const newExpiry = applyPeriod(base, renewPeriod).format('YYYY-MM-DD')
     try {
-      await updateDoc(doc(db, 'licenses', renewTarget.id), { expiresAt: newExpiry, status: 'active' })
+      await updateDoc(doc(db, 'licenses', renewTarget.id), {
+        expiresAt: newExpiry, status: 'active',
+        nearExpiryNotifiedAt: null, expiredNotifiedAt: null,
+      })
       await addDoc(collection(db, 'contracts'), {
         companyId: renewTarget.companyId || null,
         plan:      renewTarget.plan || null,
@@ -242,8 +245,13 @@ export default function Licenses() {
     { title: 'Módulo', dataIndex: 'moduleName',  key: 'module' },
     { title: 'Empresa', key: 'company', render: (_, r) => r.companyName || <span style={{ color: '#bbb' }}>—</span> },
     {
-      title: 'Estado', dataIndex: 'status', key: 'status',
-      render: s => { const cfg = STATUS_LABELS[s] || { label: s, color: 'default' }; return <Tag color={cfg.color}>{cfg.label}</Tag> },
+      title: 'Estado', key: 'status',
+      render: (_, r) => {
+        const eff = (r.status === 'active' && r.expiresAt && dayjs(toDate(r.expiresAt)).isBefore(dayjs()))
+          ? 'expired' : r.status
+        const cfg = STATUS_LABELS[eff] || { label: eff, color: 'default' }
+        return <Tag color={cfg.color}>{cfg.label}</Tag>
+      },
     },
     {
       title: 'Usuarios', key: 'users',
